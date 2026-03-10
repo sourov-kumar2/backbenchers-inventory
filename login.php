@@ -329,6 +329,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <h1 class="login-title">Inventory</h1>
             <p class="login-subtitle">Smart inventory management system</p>
+            <p>The Backbenchers</p>
         </div>
 
         <form method="POST" action="">
