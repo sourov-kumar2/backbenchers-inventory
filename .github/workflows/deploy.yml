@@ -1,0 +1,28 @@
+name: Auto Deploy Inventory (Raw PHP)
+
+# Trigger on push to main branch
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Start Deployment
+        run: echo "Starting deployment to VPS..."
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}         # VPS IP
+          username: ${{ secrets.SERVER_USER }}     # root or site user
+          key: ${{ secrets.SERVER_SSH_KEY }}       # Private key
+          script: |
+            echo "Deploying to /home/zentor-inventory/htdocs/inventory.zentor.online"
+            cd /home/zentor-inventory/htdocs/inventory.zentor.online
+            git reset --hard
+            git pull origin main
+            echo "Deployment finished!"
