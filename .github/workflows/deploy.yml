@@ -11,13 +11,13 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      # ── 1. Checkout (needed for metadata only) ──────────────────────────────
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
       - name: 📦 Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      # ── 2. Show context ─────────────────────────────────────────────────────
+      # ── 2. Deployment context ────────────────────────────────────────────────
       - name: 🔍 Deployment context
         run: |
           echo "=========================================="
@@ -30,37 +30,31 @@ jobs:
           echo "  Runner IP: $(curl -sf https://api.ipify.org || echo 'unavailable')"
           echo "=========================================="
 
-      # ── 3. Verify secrets are set ───────────────────────────────────────────
+      # ── 3. Verify secrets ────────────────────────────────────────────────────
       - name: 🔐 Verify secrets presence
         run: |
           MISSING=()
           [[ -z "${{ secrets.SERVER_HOST }}"    ]] && MISSING+=("SERVER_HOST")
           [[ -z "${{ secrets.SERVER_USER }}"    ]] && MISSING+=("SERVER_USER")
           [[ -z "${{ secrets.SERVER_SSH_KEY }}" ]] && MISSING+=("SERVER_SSH_KEY")
-
           if [ ${#MISSING[@]} -gt 0 ]; then
             echo "❌ Missing secrets: ${MISSING[*]}"
             exit 1
           fi
           echo "✅ All required secrets are present"
 
-      # ── 4. Test connectivity before SSH ─────────────────────────────────────
+      # ── 4. Pre-flight connectivity check ─────────────────────────────────────
       - name: 🌐 Pre-flight connectivity check
         run: |
           echo "Testing TCP connectivity to VPS port 22..."
           if timeout 10 bash -c "echo >/dev/tcp/${{ secrets.SERVER_HOST }}/22" 2>/dev/null; then
             echo "✅ Port 22 is reachable"
           else
-            echo "❌ Port 22 is NOT reachable — likely a firewall block"
-            echo ""
-            echo "  Fix options:"
-            echo "  1. Hostinger panel → VPS → Firewall → Allow port 22"
-            echo "  2. CloudPanel → Security → Firewall → Allow port 22"
-            echo "  3. Run on VPS: sudo ufw allow 22/tcp"
+            echo "❌ Port 22 is NOT reachable — firewall block"
             exit 1
           fi
 
-      # ── 5. Deploy via SSH ────────────────────────────────────────────────────
+      # ── 5. Deploy via SSH ─────────────────────────────────────────────────────
       - name: 🚢 Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -70,18 +64,20 @@ jobs:
           port: 22
           timeout: 60s
           command_timeout: 10m
-          debug: true
           script: |
-            set -e  # Exit immediately on any error
+            set -e
 
             echo "=========================================="
             echo "  REMOTE DEPLOYMENT STARTED"
-            echo "  Host   : $(hostname)"
-            echo "  User   : $(whoami)"
-            echo "  Time   : $(date '+%Y-%m-%d %H:%M:%S %Z')"
+            echo "  Host : $(hostname)"
+            echo "  User : $(whoami)"
+            echo "  Time : $(date '+%Y-%m-%d %H:%M:%S %Z')"
             echo "=========================================="
 
             DEPLOY_DIR="/home/zentor-inventory/htdocs/inventory.zentor.online"
+
+            # ── Fix git safe directory ──────────────────
+            git config --global --add safe.directory "$DEPLOY_DIR"
 
             echo ""
             echo "── [1/5] Verifying deploy directory..."
@@ -121,7 +117,7 @@ jobs:
             echo "  $(date '+%Y-%m-%d %H:%M:%S %Z')"
             echo "=========================================="
 
-      # ── 6. Notify on failure ─────────────────────────────────────────────────
+      # ── 6. Notify on failure ──────────────────────────────────────────────────
       - name: ❌ Notify failure
         if: failure()
         run: |
