@@ -1,28 +1,134 @@
-name: Auto Deploy Inventory (Raw PHP)
+name: 🚀 Auto Deploy — Inventory (Raw PHP)
 
-# Trigger on push to main branch
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   deploy:
+    name: Deploy to Hostinger VPS
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
-      - name: Start Deployment
-        run: echo "Starting deployment to VPS..."
+      # ── 1. Checkout (needed for metadata only) ──────────────────────────────
+      - name: 📦 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - name: Deploy via SSH
+      # ── 2. Show context ─────────────────────────────────────────────────────
+      - name: 🔍 Deployment context
+        run: |
+          echo "=========================================="
+          echo "  DEPLOYMENT CONTEXT"
+          echo "=========================================="
+          echo "  Branch   : ${{ github.ref_name }}"
+          echo "  Commit   : ${{ github.sha }}"
+          echo "  Author   : ${{ github.actor }}"
+          echo "  Triggered: ${{ github.event_name }}"
+          echo "  Runner IP: $(curl -sf https://api.ipify.org || echo 'unavailable')"
+          echo "=========================================="
+
+      # ── 3. Verify secrets are set ───────────────────────────────────────────
+      - name: 🔐 Verify secrets presence
+        run: |
+          MISSING=()
+          [[ -z "${{ secrets.SERVER_HOST }}"    ]] && MISSING+=("SERVER_HOST")
+          [[ -z "${{ secrets.SERVER_USER }}"    ]] && MISSING+=("SERVER_USER")
+          [[ -z "${{ secrets.SERVER_SSH_KEY }}" ]] && MISSING+=("SERVER_SSH_KEY")
+
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "❌ Missing secrets: ${MISSING[*]}"
+            exit 1
+          fi
+          echo "✅ All required secrets are present"
+
+      # ── 4. Test connectivity before SSH ─────────────────────────────────────
+      - name: 🌐 Pre-flight connectivity check
+        run: |
+          echo "Testing TCP connectivity to VPS port 22..."
+          if timeout 10 bash -c "echo >/dev/tcp/${{ secrets.SERVER_HOST }}/22" 2>/dev/null; then
+            echo "✅ Port 22 is reachable"
+          else
+            echo "❌ Port 22 is NOT reachable — likely a firewall block"
+            echo ""
+            echo "  Fix options:"
+            echo "  1. Hostinger panel → VPS → Firewall → Allow port 22"
+            echo "  2. CloudPanel → Security → Firewall → Allow port 22"
+            echo "  3. Run on VPS: sudo ufw allow 22/tcp"
+            exit 1
+          fi
+
+      # ── 5. Deploy via SSH ────────────────────────────────────────────────────
+      - name: 🚢 Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SERVER_HOST }}         # VPS IP
-          username: ${{ secrets.SERVER_USER }}     # root or site user
-          key: ${{ secrets.SERVER_SSH_KEY }}       # Private key
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 10m
+          debug: true
           script: |
-            echo "Deploying to /home/zentor-inventory/htdocs/inventory.zentor.online"
-            cd /home/zentor-inventory/htdocs/inventory.zentor.online
+            set -e  # Exit immediately on any error
+
+            echo "=========================================="
+            echo "  REMOTE DEPLOYMENT STARTED"
+            echo "  Host   : $(hostname)"
+            echo "  User   : $(whoami)"
+            echo "  Time   : $(date '+%Y-%m-%d %H:%M:%S %Z')"
+            echo "=========================================="
+
+            DEPLOY_DIR="/home/zentor-inventory/htdocs/inventory.zentor.online"
+
+            echo ""
+            echo "── [1/5] Verifying deploy directory..."
+            if [ ! -d "$DEPLOY_DIR" ]; then
+              echo "❌ Directory not found: $DEPLOY_DIR"
+              exit 1
+            fi
+            cd "$DEPLOY_DIR"
+            echo "✅ In: $(pwd)"
+
+            echo ""
+            echo "── [2/5] Current state..."
+            echo "  Branch : $(git branch --show-current)"
+            echo "  Commit : $(git rev-parse --short HEAD) — $(git log -1 --pretty=%s)"
+
+            echo ""
+            echo "── [3/5] Resetting local changes..."
             git reset --hard
+            git clean -fd
+            echo "✅ Working tree clean"
+
+            echo ""
+            echo "── [4/5] Pulling latest from main..."
             git pull origin main
-            echo "Deployment finished!"
+            echo "✅ Pull complete"
+
+            echo ""
+            echo "── [5/5] Post-deploy state..."
+            echo "  Branch : $(git branch --show-current)"
+            echo "  Commit : $(git rev-parse --short HEAD) — $(git log -1 --pretty=%s)"
+            echo "  Files  : $(find . -name '*.php' | wc -l) PHP files"
+            echo "  Size   : $(du -sh . | cut -f1)"
+
+            echo ""
+            echo "=========================================="
+            echo "  ✅ DEPLOYMENT COMPLETE"
+            echo "  $(date '+%Y-%m-%d %H:%M:%S %Z')"
+            echo "=========================================="
+
+      # ── 6. Notify on failure ─────────────────────────────────────────────────
+      - name: ❌ Notify failure
+        if: failure()
+        run: |
+          echo "=========================================="
+          echo "  DEPLOYMENT FAILED"
+          echo "  Branch : ${{ github.ref_name }}"
+          echo "  Commit : ${{ github.sha }}"
+          echo "  Actor  : ${{ github.actor }}"
+          echo "  See logs above for details"
+          echo "=========================================="
