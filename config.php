@@ -1,9 +1,9 @@
 <?php
 // Database configuration
 $host = 'localhost';
-$db   = 'inveentory';
-$user = 'sourov';
-$pass = 'M0nPMsEN3B7ealJ9N7xM';
+$db   = 'inventory';
+$user = 'root';
+$pass = '';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$db", $user, $pass);
