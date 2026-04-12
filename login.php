@@ -329,7 +329,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <h1 class="login-title">Inventory</h1>
             <p class="login-subtitle">Smart inventory management system</p>
-            <p class="login-subtitle">The Backbenchers</p>
+            <p class="login-subtitle">The Backbenchers Community</p>
             
         </div>
 
