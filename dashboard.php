@@ -14,61 +14,18 @@ try {
     $stmt = $pdo->query('SELECT SUM(total_amount) FROM sales');
     $total_revenue = $stmt->fetchColumn() ?: 0;
 
-    // 2. Intelligence: Sales Velocity & Inventory Forecasting (Last 14 days baseline)
-    $stmt = $pdo->query('SELECT 
-                            p.id, 
-                            p.item_name, 
-                            p.quantity as current_stock,
-                            p.image,
-                            IFNULL(SUM(si.quantity), 0) as total_sold,
-                            IFNULL(SUM(si.quantity) / 14, 0) as daily_velocity
-                         FROM products p
-                         LEFT JOIN sale_items si ON p.id = si.product_id
-                         LEFT JOIN sales s ON si.sale_id = s.id AND s.sale_date >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
-                         GROUP BY p.id');
-    $inventory_intelligence = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $pdo->query('SELECT SUM(amount_due) FROM sales');
+    $total_receivables = $stmt->fetchColumn() ?: 0;
 
-    // Filter and Process Forecasting
-    $forecasting = [];
-    $restock_pulse = [];
-    foreach ($inventory_intelligence as $item) {
-        $runway = ($item['daily_velocity'] > 0) ? floor($item['current_stock'] / $item['daily_velocity']) : 999;
-        
-        $item['runway'] = $runway;
-        
-        // Actionable Restock Pulse (Sold at least something and runway < 7 days OR stock is 0 and it has velocity)
-        if ($item['daily_velocity'] > 0 && ($runway < 7 || $item['current_stock'] <= 0)) {
-            $restock_pulse[] = $item;
-        }
-        
-        if ($item['daily_velocity'] > 0) {
-            $forecasting[] = $item;
-        }
-    }
-    
-    // Sort pulse by urgency (runway ascending)
-    usort($restock_pulse, fn($a, $b) => $a['runway'] <=> $b['runway']);
-    // Sort forecasting by velocity to show top items
-    usort($forecasting, fn($a, $b) => $b['daily_velocity'] <=> $a['daily_velocity']);
+    // 2. Inventory Distribution for Chart
+    $stmt = $pdo->query("SELECT 
+        SUM(CASE WHEN quantity <= 0 THEN 1 ELSE 0 END) as out_of_stock,
+        SUM(CASE WHEN quantity > 0 AND quantity < 10 THEN 1 ELSE 0 END) as low_stock,
+        SUM(CASE WHEN quantity >= 10 THEN 1 ELSE 0 END) as healthy
+        FROM products");
+    $stock_status = $stmt->fetch();
 
-    // 3. Leaderboard Intel
-    // Star Product
-    $stmt = $pdo->query('SELECT p.item_name, SUM(si.quantity) as sold 
-                         FROM sale_items si 
-                         JOIN products p ON si.product_id = p.id 
-                         GROUP BY p.id 
-                         ORDER BY sold DESC LIMIT 1');
-    $star_product = $stmt->fetch();
-
-    // VIP Client
-    $stmt = $pdo->query('SELECT c.name, SUM(s.total_amount) as spent 
-                         FROM sales s 
-                         JOIN customers c ON s.customer_id = c.id 
-                         GROUP BY c.id 
-                         ORDER BY spent DESC LIMIT 1');
-    $vip_client = $stmt->fetch();
-
-    // 4. Sales Trend (Last 7 Days)
+    // 3. Sales Trend (Last 7 Days)
     $stmt = $pdo->query('SELECT DATE(sale_date) as date, SUM(total_amount) as amount 
                          FROM sales 
                          WHERE sale_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) 
@@ -83,7 +40,22 @@ try {
         $trend_values[] = isset($raw_trend[$date]) ? (float)$raw_trend[$date] : 0;
     }
 
-    // 5. Recent Sales
+    // 4. Intelligence: Restock Pulse
+    $stmt = $pdo->query('SELECT 
+                            p.id, 
+                            p.item_name, 
+                            p.quantity as current_stock,
+                            IFNULL(SUM(si.quantity) / 14, 0) as daily_velocity
+                         FROM products p
+                         LEFT JOIN sale_items si ON p.id = si.product_id
+                         LEFT JOIN sales s ON si.sale_id = s.id AND s.sale_date >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
+                         GROUP BY p.id
+                         HAVING daily_velocity > 0 AND (current_stock / daily_velocity < 7 OR current_stock <= 0)
+                         ORDER BY (current_stock / daily_velocity) ASC
+                         LIMIT 4');
+    $restock_pulse = $stmt->fetchAll();
+
+    // 5. Recent Activity
     $stmt = $pdo->query('SELECT s.*, c.name as customer_name 
                          FROM sales s 
                          LEFT JOIN customers c ON s.customer_id = c.id 
@@ -92,17 +64,18 @@ try {
     $recent_sales = $stmt->fetchAll();
 
 } catch (PDOException $e) {
-    $total_items = 0; $total_customers = 0; $total_revenue = 0;
-    $forecasting = []; $restock_pulse = []; $recent_sales = [];
-    $star_product = null; $vip_client = null;
+    $total_items = 0; $total_customers = 0; $total_revenue = 0; $total_receivables = 0;
+    $stock_status = ['out_of_stock' => 0, 'low_stock' => 0, 'healthy' => 0];
+    $trend_labels = []; $trend_values = []; $restock_pulse = []; $recent_sales = [];
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <?php 
-$pageTitle = 'Predictive Dashboard';
+$pageTitle = 'Terminal Intelligence';
 include 'partials/head.php'; 
 ?>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <body>
     <div class="app-container">
         <?php include 'partials/sidebar.php'; ?>
@@ -110,85 +83,88 @@ include 'partials/head.php';
         <div class="main-content">
             <?php include 'partials/navbar.php'; ?>
             
-            <header class="page-header animate-fade-in">
-                <div class="header-titles">
-                    <h1 class="header-main">Intelligence Briefing</h1>
-                    <p class="text-muted">Predictive stock depletion monitoring and business velocity analytics.</p>
+            <!-- Global Metrics -->
+            <div class="metrics-grid animate-fade-in">
+                <div class="metric-card glass">
+                    <div class="metric-info">
+                        <span class="m-label">Total Revenue</span>
+                        <h2 class="m-value">৳<?= number_format($total_revenue, 0) ?></h2>
+                    </div>
+                    <div class="metric-icon rev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></div>
                 </div>
-                <div class="header-actions">
-                    <a href="pos.php" class="btn btn-primary">Terminal Interface</a>
+                <div class="metric-card glass">
+                    <div class="metric-info">
+                        <span class="m-label">Receivables</span>
+                        <h2 class="m-value" style="color: #f87171;">৳<?= number_format($total_receivables, 0) ?></h2>
+                    </div>
+                    <div class="metric-icon due"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></div>
                 </div>
-            </header>
-
-
-            <!-- Enhanced KPI Row -->
-            <div class="stats-grid animate-fade-in" style="animation-delay: 0.2s">
-                <div class="kpi-card glass">
-                    <div class="kpi-label">Revenue Engine</div>
-                    <div class="kpi-value">৳<?= number_format($total_revenue, 2) ?></div>
+                <div class="metric-card glass">
+                    <div class="metric-info">
+                        <span class="m-label">Fleet Size</span>
+                        <h2 class="m-value"><?= number_format($total_items) ?> Items</h2>
+                    </div>
+                    <div class="metric-icon box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg></div>
                 </div>
-                <div class="kpi-card glass">
-                    <div class="kpi-label">Active Database</div>
-                    <div class="kpi-value"><?= number_format($total_customers) ?> Clients</div>
-                </div>
-                <div class="kpi-card glass">
-                    <div class="kpi-label">Asset Worth</div>
-                    <div class="kpi-value"><?= number_format($total_items) ?> SKUs</div>
+                <div class="metric-card glass">
+                    <div class="metric-info">
+                        <span class="m-label">User Base</span>
+                        <h2 class="m-value"><?= number_format($total_customers) ?> Subs</h2>
+                    </div>
+                    <div class="metric-icon usr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
                 </div>
             </div>
 
-            <!-- Forecasting Grid -->
-            <div class="dashboard-secondary animate-fade-in" style="animation-delay: 0.3s">
+            <!-- Analytics Hub -->
+            <div class="analytics-grid animate-fade-in" style="animation-delay: 0.1s">
+                <div class="chart-container glass">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Revenue Trajectory</h3>
+                        <span class="chart-subtitle">Rolling 7-Day Performance</span>
+                    </div>
+                    <canvas id="revenueChart"></canvas>
+                </div>
+
+                <div class="secondary-intel">
+                    <div class="chart-container glass">
+                        <h3 class="chart-title">Inventory Health</h3>
+                        <canvas id="stockChart" height="220"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bottom-grid animate-fade-in" style="animation-delay: 0.2s">
                 <div class="table-card glass">
-                    <div class="card-header-flex">
-                        <h2 class="section-title">Inventory Forecasting</h2>
-                        <span class="badge">14-Day Velocity Baseline</span>
+                    <div class="card-header">
+                        <h3 class="chart-title">Live Transactions</h3>
+                        <a href="sales_list.php" class="view-all">Full Log</a>
                     </div>
-                    <div class="table-container">
-                        <table>
-                            <thead>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Client</th>
+                                <th>Method</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach($recent_sales as $rs): ?>
                                 <tr>
-                                    <th>Product</th>
-                                    <th>Stock</th>
-                                    <th>Velocity</th>
-                                    <th>Estimated Runway</th>
-                                    <th>Status</th>
+                                    <td><?= htmlspecialchars($rs['customer_name'] ?: 'Retail') ?></td>
+                                    <td><?= $rs['payment_method'] ?></td>
+                                    <td class="font-bold">৳<?= number_format($rs['total_amount'], 2) ?></td>
+                                    <td>
+                                        <?php if($rs['amount_due'] > 0): ?>
+                                            <span class="st-tag due">DUE</span>
+                                        <?php else: ?>
+                                            <span class="st-tag paid">PAID</span>
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (empty($forecasting)): ?>
-                                    <tr><td colspan="5" class="empty-row">Predictive data will appear as sales occur.</td></tr>
-                                <?php else: ?>
-                                    <?php foreach (array_slice($forecasting, 0, 6) as $f): 
-                                        $rClass = ($f['runway'] < 3) ? 'danger-text' : (($f['runway'] < 7) ? 'warning-text' : 'success-text');
-                                    ?>
-                                        <tr>
-                                            <td>
-                                                <div class="p-cell">
-                                                    <?php if ($f['image']): ?>
-                                                        <img src="<?= htmlspecialchars($f['image']) ?>" alt="" class="p-mini-thumb">
-                                                    <?php endif; ?>
-                                                    <strong><?= htmlspecialchars($f['item_name']) ?></strong>
-                                                </div>
-                                            </td>
-                                            <td><?= $f['current_stock'] ?> Units</td>
-                                            <td><?= round($f['daily_velocity'], 2) ?>/day</td>
-                                            <td class="<?= $rClass ?> font-bold">
-                                                <?= $f['runway'] >= 999 ? 'Sustainable' : $f['runway'] . ' Days' ?>
-                                            </td>
-                                            <td>
-                                                <?php if ($f['runway'] < 5): ?>
-                                                    <span class="pulse-tag red">URGENT</span>
-                                                <?php else: ?>
-                                                    <span class="pulse-tag green">HEALTHY</span>
-                                                <?php endif; ?>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -197,47 +173,95 @@ include 'partials/head.php';
     </div>
 
     <style>
-    .page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2.5rem; }
-    .header-main { font-size: 2.2rem; font-weight: 800; tracking: -0.02em; }
+    .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2rem; }
+    .metric-card { padding: 1.5rem; border-radius: 24px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); }
+    .m-label { display: block; font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 0.5rem; }
+    .m-value { font-size: 1.5rem; font-weight: 800; color: var(--text-primary); margin: 0; }
+    .metric-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.05); color: var(--text-dim); }
+    .metric-icon svg { width: 24px; height: 24px; }
+    .metric-icon.rev { color: #10b981; background: rgba(16, 185, 129, 0.1); }
+    .metric-icon.due { color: #f87171; background: rgba(239, 68, 68, 0.1); }
 
-    .intel-hero-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 1.5rem; margin-bottom: 2rem; }
-    .intel-card { padding: 2rem; border-radius: 28px; display: flex; flex-direction: column; }
-    .pulse-bg { background: radial-gradient(circle at top right, rgba(139, 92, 246, 0.1), transparent); }
-    .perf-bg { background: radial-gradient(circle at top right, rgba(245, 158, 11, 0.05), transparent); }
+    .analytics-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem; align-items: stretch; }
+    .chart-container { padding: 1.75rem; border-radius: 28px; border: 1px solid var(--border-color); height: 450px; display: flex; flex-direction: column; }
+    .chart-container canvas { flex: 1; min-height: 0; }
+    .chart-header { margin-bottom: 1.5rem; }
+    .chart-title { font-size: 1rem; font-weight: 700; margin: 0 0 0.25rem 0; color: var(--text-primary); }
+    .chart-subtitle { font-size: 0.75rem; color: var(--text-dim); }
+
+    .secondary-intel { display: flex; flex-direction: column; gap: 1.5rem; height: 450px; }
+    .quick-intel { padding: 1.5rem; border-radius: 24px; border: 1px solid var(--border-color); flex: 1; }
+    .pulse-list { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+    .pulse-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: rgba(255, 255, 255, 0.02); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); }
+    .p-name { display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 0.2rem; }
+    .p-stock { font-size: 0.7rem; color: #f87171; font-weight: 600; }
+    .pulse-btn { padding: 0.35rem 0.75rem; border-radius: 6px; background: rgba(139, 92, 246, 0.1); color: var(--accent-primary); font-size: 0.7rem; font-weight: 700; text-decoration: none; border: 1px solid rgba(139, 92, 246, 0.2); }
+    .pulse-btn:hover { background: var(--accent-primary); color: white; }
+
+    .bottom-grid { margin-bottom: 2rem; }
+    .view-all { font-size: 0.75rem; color: var(--accent-primary); text-decoration: none; font-weight: 600; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 2rem; border-bottom: 1px solid var(--border-color); }
     
-    .intel-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 2rem; }
-    .pulse-dot { width: 10px; height: 10px; background: #ef4444; border-radius: 50%; box-shadow: 0 0 10px #ef4444; animation: blink 1.5s infinite; }
-    @keyframes blink { 0% { opacity: 0.3; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } 100% { opacity: 0.3; transform: scale(0.9); } }
-    
-    .pulse-list { display: flex; flex-direction: column; gap: 1rem; }
-    .pulse-item { border-left: 3px solid rgba(239, 68, 68, 0.5); padding: 0.5rem 1rem; background: rgba(255, 255, 255, 0.02); display: flex; justify-content: space-between; align-items: center; border-radius: 0 12px 12px 0; }
-    .p-warning { display: block; font-size: 0.75rem; color: #ef4444; font-weight: 700; margin-top: 0.25rem; }
-    .restock-btn { padding: 0.4rem 0.8rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; font-size: 0.75rem; border-radius: 6px; text-decoration: none; font-weight: 700; transition: 0.2s; }
-    .restock-btn:hover { background: #ef4444; color: white; }
+    .st-tag { font-size: 0.65rem; font-weight: 800; padding: 0.25rem 0.5rem; border-radius: 6px; }
+    .st-tag.due { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+    .st-tag.paid { background: rgba(16, 185, 129, 0.1); color: #10b981; }
 
-    .leader-stats { display: flex; flex-direction: column; gap: 1.5rem; }
-    .leader-item { border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
-    .l-label { display: block; font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 0.5rem; }
-    .l-val { font-size: 1.1rem; font-weight: 800; color: #f59e0b; }
+    .empty-msg { font-size: 0.8rem; color: var(--text-dim); text-align: center; margin-top: 1rem; }
 
-    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 2rem; }
-    .kpi-card { padding: 1.5rem; border-radius: 20px; text-align: center; }
-    .kpi-label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 0.5rem; }
-    .kpi-value { font-size: 1.5rem; font-weight: 800; color: var(--accent-primary); }
-
-    .card-header-flex { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 2rem; border-bottom: 1px solid var(--border-color); }
-    .badge { padding: 0.3rem 0.6rem; background: rgba(255, 255, 255, 0.05); border-radius: 6px; font-size: 0.7rem; color: var(--text-dim); font-weight: 700; }
-    .p-cell { display: flex; align-items: center; gap: 0.75rem; }
-    .p-mini-thumb { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; }
-    
-    .danger-text { color: #f87171; }
-    .warning-text { color: #fbbf24; }
-    .success-text { color: #34d399; }
-    .pulse-tag { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.65rem; font-weight: 800; }
-    .pulse-tag.red { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
-    .pulse-tag.green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
-
-    @media (max-width: 1000px) { .intel-hero-grid { grid-template-columns: 1fr; } .stats-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 1200px) { .metrics-grid { grid-template-columns: 1fr 1fr; } .analytics-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { .metrics-grid { grid-template-columns: 1fr; } }
     </style>
+
+    <script>
+    // 1. Revenue Pulse Chart
+    new Chart(document.getElementById('revenueChart'), {
+        type: 'line',
+        data: {
+            labels: <?= json_encode($trend_labels) ?>,
+            datasets: [{
+                label: 'Revenue (৳)',
+                data: <?= json_encode($trend_values) ?>,
+                borderColor: '#8b5cf6',
+                backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                fill: true,
+                tension: 0.4,
+                borderWidth: 3,
+                pointRadius: 4,
+                pointBackgroundColor: '#8b5cf6'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: 'rgba(255, 255, 255, 0.5)', font: { size: 10 } } },
+                x: { grid: { display: false }, ticks: { color: 'rgba(255, 255, 255, 0.5)', font: { size: 10 } } }
+            }
+        }
+    });
+
+    // 2. Stock Health Chart
+    new Chart(document.getElementById('stockChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Healthy', 'Low', 'Out'],
+            datasets: [{
+                data: [<?= $stock_status['healthy'] ?>, <?= $stock_status['low_stock'] ?>, <?= $stock_status['out_of_stock'] ?>],
+                backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                borderWidth: 0,
+                hoverOffset: 10
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: { position: 'bottom', labels: { color: 'rgba(255, 255, 255, 0.7)', font: { size: 10 }, usePointStyle: true, padding: 15 } }
+            }
+        }
+    });
+    </script>
 </body>
 </html>

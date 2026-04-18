@@ -7,63 +7,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $payment_method = $_POST['payment_method'] ?? 'Cash';
     
     // Financial Fields
-    $subtotal_amount = (float)($_POST['subtotal_amount'] ?? 0);
-    $discount_amount = (float)($_POST['discount_amount'] ?? 0);
-    $tax_amount      = (float)($_POST['tax_amount'] ?? 0);
+    $subtotal_amount = $_POST['subtotal_amount'] ?? 0;
+    $discount_amount = $_POST['discount_amount'] ?? 0;
+    $tax_amount     = $_POST['tax_amount']     ?? 0;
+    $amount_paid    = $_POST['amount_paid']    ?? 0;
     
-    // Grand Total calculation
-    $total_amount = ($subtotal_amount - $discount_amount) + $tax_amount;
-
-    $cart_json = $_POST['cart_data'] ?? '[]';
-    $cart = json_decode($cart_json, true);
-
-    if (empty($cart)) {
+    $cart_data = json_decode($_POST['cart_data'], true);
+    
+    if (empty($cart_data)) {
         header('Location: pos.php?error=empty_cart');
+        exit();
+    }
+
+    $total_amount = $subtotal_amount - $discount_amount + $tax_amount;
+    $amount_due = $total_amount - $amount_paid;
+
+    // Strict Validation: No Debt for Walk-ins
+    if ($customer_id === null && $amount_due > 0) {
+        header('Location: pos.php?error=walkin_debt');
         exit();
     }
 
     try {
         $pdo->beginTransaction();
 
-        // 1. Insert Sale Header with Taxes and Discounts
-        $stmt = $pdo->prepare('INSERT INTO sales (customer_id, subtotal_amount, total_amount, discount_amount, tax_amount, payment_method) VALUES (?, ?, ?, ?, ?, ?)');
-        $stmt->execute([
-            $customer_id, 
-            $subtotal_amount, 
-            $total_amount, 
-            $discount_amount, 
-            $tax_amount, 
-            $payment_method
-        ]);
+        // 1. Create Sale Record
+        $stmt = $pdo->prepare('INSERT INTO sales (customer_id, subtotal_amount, total_amount, discount_amount, tax_amount, amount_paid, amount_due, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$customer_id, $subtotal_amount, $total_amount, $discount_amount, $tax_amount, $amount_paid, $amount_due, $payment_method]);
         $sale_id = $pdo->lastInsertId();
 
-        // 2. Insert Sale Items & Update Inventory
-        $stmtItem = $pdo->prepare('INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?)');
-        $stmtUpdate = $pdo->prepare('UPDATE products SET quantity = quantity - ? WHERE id = ?');
+        // 2. Process Items and Inventory
+        $stmt = $pdo->prepare('INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?)');
+        $updateStock = $pdo->prepare('UPDATE products SET quantity = quantity - ? WHERE id = ?');
 
-        foreach ($cart as $item) {
-            $subtotal = $item['price'] * $item['qty'];
-            
-            // Insert line item
-            $stmtItem->execute([
-                $sale_id, 
-                $item['id'], 
-                $item['qty'], 
-                $item['price'], 
-                $subtotal
-            ]);
+        foreach ($cart_data as $item) {
+            $stmt->execute([$sale_id, $item['id'], $item['qty'], $item['price'], $item['price'] * $item['qty']]);
+            $updateStock->execute([$item['qty'], $item['id']]);
+        }
 
-            // Deduct stock
-            $stmtUpdate->execute([$item['qty'], $item['id']]);
+        // 3. Update Customer Dues if applicable
+        if ($customer_id && $amount_due > 0) {
+            $stmt = $pdo->prepare('UPDATE customers SET total_due = total_due + ? WHERE id = ?');
+            $stmt->execute([$amount_due, $customer_id]);
         }
 
         $pdo->commit();
-        header('Location: pos.php?success=1&sale_id=' . $sale_id);
+        header("Location: view_invoice.php?id=$sale_id&success=1");
     } catch (Exception $e) {
         $pdo->rollBack();
-        header('Location: pos.php?error=' . urlencode($e->getMessage()));
+        die("Transaction failed: " . $e->getMessage());
     }
-    exit();
 }
-header('Location: pos.php');
-exit();
+?>

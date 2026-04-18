@@ -1,7 +1,7 @@
 <footer class="footer animate-fade-in">
     <div class="footer-container">
         <div class="footer-left">
-            <p>&copy; <?= date('Y') ?> <span class="accent-text">Backbenchers</span> Inventory System. Built for Performance.</p>
+            <p>&copy; <?= date('Y') ?> <span class="accent-text"><?= htmlspecialchars($sys['system_name'] ?? 'Backbenchers') ?></span> Inventory System. Built for Performance.</p>
         </div>
         <div class="footer-right">
             <ul class="footer-links">

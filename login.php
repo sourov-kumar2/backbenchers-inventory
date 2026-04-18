@@ -28,12 +28,12 @@ include 'partials/head.php';
 <body class="login-wrapper">
     <div class="login-glass-container animate-fade-in">
         <div class="login-card glass">
-            <div class="card-close-btn">
+            <!-- <div class="card-close-btn">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
-            </div>
+            </div> -->
             
             <div class="login-header text-center">
                 <div class="brand-logo">
@@ -91,7 +91,7 @@ include 'partials/head.php';
 
     .login-glass-container {
         width: 100%;
-        max-width: 440px;
+        max-width: 600px;
         padding: 1.5rem;
     }
 

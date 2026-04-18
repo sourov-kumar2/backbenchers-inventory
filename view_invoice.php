@@ -126,7 +126,7 @@ include 'partials/head.php';
                 <div class="payment-note">
                     <span class="note-label">Payment Information:</span>
                     <p class="note-val">Method: <?= htmlspecialchars($sale['payment_method']) ?></p>
-                    <p class="note-val">Status: Paid in Full</p>
+                    <p class="note-val">Status: <?= $sale['amount_due'] > 0 ? '<span style="color: #ef4444;">Pending Due</span>' : '<span style="color: #10b981;">Paid in Full</span>' ?></p>
                 </div>
                 <div class="totals-box">
                     <div class="total-row">
@@ -144,9 +144,19 @@ include 'partials/head.php';
                         <span class="t-val">৳<?= number_format($sale['tax_amount'], 2) ?></span>
                     </div>
                     <div class="total-row grand-divider">
-                        <span class="t-label-grand">Grand Total</span>
+                        <span class="t-label-grand">Final Total</span>
                         <span class="t-val-grand">৳<?= number_format($sale['total_amount'], 2) ?></span>
                     </div>
+                    <div class="total-row" style="border-top: 1px solid rgba(255,255,255,0.05); margin-top: 0.5rem; padding-top: 1rem;">
+                        <span class="t-label">Amount Paid</span>
+                        <span class="t-val">৳<?= number_format($sale['amount_paid'], 2) ?></span>
+                    </div>
+                    <?php if ($sale['amount_due'] > 0): ?>
+                    <div class="total-row">
+                        <span class="t-label" style="color: #fca5a5;">Outstanding Due</span>
+                        <span class="t-val" style="color: #ef4444; font-weight: 800;">৳<?= number_format($sale['amount_due'], 2) ?></span>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
 

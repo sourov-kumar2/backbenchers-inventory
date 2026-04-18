@@ -22,18 +22,8 @@ include 'partials/head.php';
         
         <div class="main-content">
             <?php include 'partials/navbar.php'; ?>
-            
-            <header class="page-header animate-fade-in">
-                <div class="header-titles">
-                    <h1 class="header-main">POS Terminal</h1>
-                    <p class="text-muted">High-performance retail processing with integrated stock monitoring.</p>
-                </div>
-                <div class="header-actions">
-                    <button class="btn btn-outline" onclick="resetTerminal()">Reset Transaction</button>
-                </div>
-            </header>
 
-            <div class="pos-grid animate-fade-in" style="animation-delay: 0.1s">
+            <div class="pos-grid animate-fade-in" style="animation-delay: 0.1s; margin-bottom: 2rem;">
                 <div class="pos-left-panel">
                     <!-- Product Selection -->
                     <div class="card glass pos-search-card">
@@ -131,6 +121,12 @@ include 'partials/head.php';
                                     </select>
                                 </div>
 
+                                <div class="form-group">
+                                    <label class="form-label">Amount Paid (৳)</label>
+                                    <input type="number" name="amount_paid" id="amountPaid" class="form-control pos-select" step="0.01" required>
+                                    <span class="input-hint" id="dueHint" style="color: var(--danger); font-size: 0.7rem; display: none;">Remaining Due: ৳0.00</span>
+                                </div>
+
                                 <div class="totals-section">
                                     <div class="total-row">
                                         <span>Subtotal</span>
@@ -211,11 +207,11 @@ include 'partials/head.php';
     .qty-btn:hover { background: var(--accent-primary); }
     .cart-item-qty { font-weight: 800; min-width: 24px; text-align: center; font-size: 0.9rem; }
 
+    .btn-full { width: 100%; border-radius: 14px; padding: 1.1rem; font-size: 1rem; margin-top: 1rem; position: relative; z-index: 10; cursor: pointer; }
+    .checkout-btn { box-shadow: 0 10px 20px rgba(139, 92, 246, 0.2); transition: 0.3s; }
+    .checkout-btn:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(139, 92, 246, 0.3); }
+
     .totals-section { background: rgba(255, 255, 255, 0.04); padding: 1.5rem; border-radius: 16px; margin-bottom: 1.5rem; border: 1px solid var(--border-color); }
-    .total-row { display: flex; justify-content: space-between; margin-bottom: 0.6rem; font-size: 0.9rem; color: var(--text-secondary); }
-    .grand-total { border-top: 1px solid var(--border-color); padding-top: 1rem; margin-top: 0.75rem; font-weight: 900; font-size: 1.4rem; color: var(--accent-primary); }
-    
-    .btn-full { width: 100%; border-radius: 14px; padding: 1.1rem; font-size: 1rem; }
 
     @media (max-width: 1200px) { .pos-grid { grid-template-columns: 1fr; } .pos-search-card, .pos-cart-card { height: auto; min-height: 500px; } }
     </style>
@@ -341,10 +337,35 @@ include 'partials/head.php';
         document.getElementById('taxVal').innerText = '৳' + tAmount.toFixed(2);
         document.getElementById('grandTotalVal').innerText = '৳' + grandTotal.toFixed(2);
 
+        // Default Amount Paid to Grand Total if not previously edited manually
+        if (!document.getElementById('amountPaid').classList.contains('manually-edited')) {
+            document.getElementById('amountPaid').value = grandTotal.toFixed(2);
+        }
+        updateDueHint();
+
         // Hidden inputs for form submission
         document.getElementById('subtotalInput').value = subtotal.toFixed(2);
         document.getElementById('discountInput').value = dAmount.toFixed(2);
         document.getElementById('taxInput').value = tAmount.toFixed(2);
+    }
+
+    // Handle Manual Paid Amount Changes
+    document.getElementById('amountPaid').addEventListener('input', function() {
+        this.classList.add('manually-edited');
+        updateDueHint();
+    });
+
+    function updateDueHint() {
+        const total = parseFloat(document.getElementById('grandTotalVal').innerText.replace('৳', ''));
+        const paid = parseFloat(document.getElementById('amountPaid').value) || 0;
+        const hint = document.getElementById('dueHint');
+        
+        if (paid < total) {
+            hint.textContent = `Remaining Due: ৳${(total - paid).toFixed(2)}`;
+            hint.style.display = 'block';
+        } else {
+            hint.style.display = 'none';
+        }
     }
 
     // Add listeners to percentage inputs
@@ -359,16 +380,28 @@ include 'partials/head.php';
         updateTotals(total);
     });
 
+    // Optimized Performance: Cache product cards once
+    let cachedProductCards = null;
+
     function filterProducts() {
+        if (!cachedProductCards) {
+            cachedProductCards = Array.from(document.querySelectorAll('.product-card'));
+        }
+
         const filter = document.getElementById('productSearch').value.toLowerCase();
-        const cards = document.querySelectorAll('.product-card');
-        cards.forEach(card => {
-            const name = card.dataset.name.toLowerCase();
-            if (name.includes(filter)) {
-                card.style.display = 'block';
-            } else {
-                card.style.display = 'none';
-            }
+        
+        requestAnimationFrame(() => {
+            cachedProductCards.forEach(card => {
+                const name = card.dataset.name.toLowerCase();
+                const isMatch = name.includes(filter);
+                
+                // Only update DOM if state changes
+                if (isMatch && card.style.display === 'none') {
+                    card.style.display = 'block';
+                } else if (!isMatch && card.style.display !== 'none') {
+                    card.style.display = 'none';
+                }
+            });
         });
     }
 
@@ -394,6 +427,21 @@ include 'partials/head.php';
     document.getElementById('posForm').onsubmit = function(e) {
         if (cart.length === 0) {
             Swal.fire({ icon: 'error', title: 'Empty Cart', text: 'Please select at least one item to checkout.' });
+            return false;
+        }
+
+        const customerId = document.querySelector('select[name="customer_id"]').value;
+        const total = parseFloat(document.getElementById('grandTotalVal').innerText.replace('৳', ''));
+        const paid = parseFloat(document.getElementById('amountPaid').value) || 0;
+
+        if (!customerId && paid < total) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'error',
+                title: 'Restricted Transaction',
+                text: 'Walk-in Retail Customers must pay the full amount. Dues are only accepted for registered members.',
+                confirmButtonColor: 'var(--accent-primary)'
+            });
             return false;
         }
     };
