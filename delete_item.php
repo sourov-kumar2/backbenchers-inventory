@@ -20,9 +20,17 @@ if (!$item) {
     exit();
 }
 
-// Perform deletion
-$stmt = $pdo->prepare('DELETE FROM products WHERE id = ?');
-$stmt->execute([$id]);
-
-header('Location: inventory.php?deleted=1');
+try {
+    // Perform deletion
+    $stmt = $pdo->prepare('DELETE FROM products WHERE id = ?');
+    $stmt->execute([$id]);
+    header('Location: inventory.php?deleted=1');
+} catch (PDOException $e) {
+    // Handle Foreign Key Constraint Violation (SQLSTATE 23000)
+    if ($e->getCode() == '23000') {
+        header('Location: inventory.php?error=is_sold');
+    } else {
+        header('Location: inventory.php?error=unknown');
+    }
+}
 exit();

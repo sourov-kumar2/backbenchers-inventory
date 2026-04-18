@@ -1,572 +1,243 @@
 <?php
 require 'auth.php';
+require 'config.php';
+
+// Intelligence Engine & Statistics
+try {
+    // 1. Core KPIs
+    $stmt = $pdo->query('SELECT COUNT(*) FROM products');
+    $total_items = $stmt->fetchColumn();
+
+    $stmt = $pdo->query('SELECT COUNT(*) FROM customers');
+    $total_customers = $stmt->fetchColumn();
+
+    $stmt = $pdo->query('SELECT SUM(total_amount) FROM sales');
+    $total_revenue = $stmt->fetchColumn() ?: 0;
+
+    // 2. Intelligence: Sales Velocity & Inventory Forecasting (Last 14 days baseline)
+    $stmt = $pdo->query('SELECT 
+                            p.id, 
+                            p.item_name, 
+                            p.quantity as current_stock,
+                            p.image,
+                            IFNULL(SUM(si.quantity), 0) as total_sold,
+                            IFNULL(SUM(si.quantity) / 14, 0) as daily_velocity
+                         FROM products p
+                         LEFT JOIN sale_items si ON p.id = si.product_id
+                         LEFT JOIN sales s ON si.sale_id = s.id AND s.sale_date >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
+                         GROUP BY p.id');
+    $inventory_intelligence = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Filter and Process Forecasting
+    $forecasting = [];
+    $restock_pulse = [];
+    foreach ($inventory_intelligence as $item) {
+        $runway = ($item['daily_velocity'] > 0) ? floor($item['current_stock'] / $item['daily_velocity']) : 999;
+        
+        $item['runway'] = $runway;
+        
+        // Actionable Restock Pulse (Sold at least something and runway < 7 days OR stock is 0 and it has velocity)
+        if ($item['daily_velocity'] > 0 && ($runway < 7 || $item['current_stock'] <= 0)) {
+            $restock_pulse[] = $item;
+        }
+        
+        if ($item['daily_velocity'] > 0) {
+            $forecasting[] = $item;
+        }
+    }
+    
+    // Sort pulse by urgency (runway ascending)
+    usort($restock_pulse, fn($a, $b) => $a['runway'] <=> $b['runway']);
+    // Sort forecasting by velocity to show top items
+    usort($forecasting, fn($a, $b) => $b['daily_velocity'] <=> $a['daily_velocity']);
+
+    // 3. Leaderboard Intel
+    // Star Product
+    $stmt = $pdo->query('SELECT p.item_name, SUM(si.quantity) as sold 
+                         FROM sale_items si 
+                         JOIN products p ON si.product_id = p.id 
+                         GROUP BY p.id 
+                         ORDER BY sold DESC LIMIT 1');
+    $star_product = $stmt->fetch();
+
+    // VIP Client
+    $stmt = $pdo->query('SELECT c.name, SUM(s.total_amount) as spent 
+                         FROM sales s 
+                         JOIN customers c ON s.customer_id = c.id 
+                         GROUP BY c.id 
+                         ORDER BY spent DESC LIMIT 1');
+    $vip_client = $stmt->fetch();
+
+    // 4. Sales Trend (Last 7 Days)
+    $stmt = $pdo->query('SELECT DATE(sale_date) as date, SUM(total_amount) as amount 
+                         FROM sales 
+                         WHERE sale_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) 
+                         GROUP BY DATE(sale_date)');
+    $raw_trend = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+    $trend_labels = [];
+    $trend_values = [];
+    for ($i = 6; $i >= 0; $i--) {
+        $date = date('Y-m-d', strtotime("-$i days"));
+        $trend_labels[] = date('M d', strtotime($date));
+        $trend_values[] = isset($raw_trend[$date]) ? (float)$raw_trend[$date] : 0;
+    }
+
+    // 5. Recent Sales
+    $stmt = $pdo->query('SELECT s.*, c.name as customer_name 
+                         FROM sales s 
+                         LEFT JOIN customers c ON s.customer_id = c.id 
+                         ORDER BY s.sale_date DESC 
+                         LIMIT 5');
+    $recent_sales = $stmt->fetchAll();
+
+} catch (PDOException $e) {
+    $total_items = 0; $total_customers = 0; $total_revenue = 0;
+    $forecasting = []; $restock_pulse = []; $recent_sales = [];
+    $star_product = null; $vip_client = null;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Inventory System</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 50%, #16213e 100%);
-            color: #e0e0e0;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        html {
-            scroll-behavior: smooth;
-        }
-
-        /* Navbar Styles */
-        .navbar {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            color: #fff;
-            padding: 0;
-            position: fixed;
-            top: 0;
-            width: 100%;
-            z-index: 1000;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            border-bottom: 2px solid #00d4ff;
-        }
-
-        .navbar-container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 30px;
-            max-width: 1400px;
-            margin: 0 auto;
-            width: 100%;
-        }
-
-        .navbar-brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-weight: 700;
-            font-size: 20px;
-            letter-spacing: 0.5px;
-        }
-
-        .navbar-icon {
-            width: 28px;
-            height: 28px;
-            color: #00d4ff;
-            filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.4));
-        }
-
-        .brand-text {
-            background: linear-gradient(135deg, #00d4ff, #0099cc);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .navbar-end {
-            display: flex;
-            align-items: center;
-            gap: 25px;
-        }
-
-        .user-greeting {
-            font-size: 14px;
-            color: #a0a0a0;
-            font-weight: 500;
-        }
-
-        .logout-btn {
-            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
-            color: white;
-            border: none;
-            padding: 8px 18px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 13px;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .logout-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 16px rgba(255, 107, 107, 0.4);
-        }
-
-        /* Sidebar Styles */
-        .sidebar {
-            width: 260px;
-            position: fixed;
-            top: 60px;
-            left: 0;
-            background: linear-gradient(180deg, #0f0f1e 0%, #1a1a2e 100%);
-            height: calc(100vh - 60px);
-            padding: 0;
-            z-index: 999;
-            border-right: 1px solid rgba(0, 212, 255, 0.1);
-            overflow-y: auto;
-            box-shadow: 8px 0 24px rgba(0, 0, 0, 0.3);
-        }
-
-        .sidebar-content {
-            padding: 30px 0;
-        }
-
-        .nav-menu {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .nav-item {
-            position: relative;
-            margin: 8px 0;
-        }
-
-        .nav-link {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 16px 24px;
-            color: #a0a0a0;
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 15px;
-            transition: all 0.3s ease;
-            border-left: 4px solid transparent;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .nav-link::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 212, 255, 0.05);
-            transition: left 0.3s ease;
-            z-index: -1;
-        }
-
-        .nav-link:hover::before {
-            left: 0;
-        }
-
-        .nav-link:hover {
-            color: #00d4ff;
-            border-left-color: #00d4ff;
-            padding-left: 20px;
-        }
-
-        .nav-icon {
-            width: 22px;
-            height: 22px;
-            stroke-width: 2;
-            flex-shrink: 0;
-        }
-
-        .nav-link:hover .nav-icon {
-            filter: drop-shadow(0 0 6px rgba(0, 212, 255, 0.5));
-        }
-
-        .sidebar::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .sidebar::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .sidebar::-webkit-scrollbar-thumb {
-            background: rgba(0, 212, 255, 0.3);
-            border-radius: 3px;
-        }
-
-        .sidebar::-webkit-scrollbar-thumb:hover {
-            background: rgba(0, 212, 255, 0.6);
-        }
-
-        /* Main Content */
-        .main-content {
-            margin-left: 260px;
-            margin-top: 60px;
-            margin-bottom: 50px;
-            padding: 40px 30px;
-            min-height: calc(100vh - 110px);
-        }
-
-        .page-header {
-            margin-bottom: 40px;
-            animation: slideInDown 0.6s ease;
-        }
-
-        .page-title {
-            font-size: 36px;
-            font-weight: 700;
-            margin-bottom: 8px;
-            background: linear-gradient(135deg, #00d4ff, #00a8cc);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .page-subtitle {
-            font-size: 15px;
-            color: #a0a0a0;
-            font-weight: 500;
-        }
-
-        /* Dashboard Cards Grid */
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 24px;
-            margin-bottom: 40px;
-        }
-
-        .dashboard-card {
-            background: linear-gradient(135deg, rgba(26, 26, 46, 0.8) 0%, rgba(22, 33, 62, 0.8) 100%);
-            border: 1px solid rgba(0, 212, 255, 0.2);
-            border-radius: 12px;
-            padding: 28px;
-            position: relative;
-            overflow: hidden;
-            transition: all 0.4s ease;
-            cursor: pointer;
-            animation: slideInUp 0.6s ease;
-            animation-fill-mode: both;
-        }
-
-        .dashboard-card:nth-child(1) { animation-delay: 0.1s; }
-        .dashboard-card:nth-child(2) { animation-delay: 0.2s; }
-        .dashboard-card:nth-child(3) { animation-delay: 0.3s; }
-        .dashboard-card:nth-child(4) { animation-delay: 0.4s; }
-
-        .dashboard-card::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 200px;
-            height: 200px;
-            background: radial-gradient(circle, rgba(0, 212, 255, 0.1) 0%, transparent 70%);
-            border-radius: 50%;
-            transition: all 0.4s ease;
-        }
-
-        .dashboard-card:hover::before {
-            top: -25%;
-            right: -25%;
-        }
-
-        .dashboard-card:hover {
-            border-color: rgba(0, 212, 255, 0.5);
-            transform: translateY(-8px);
-            box-shadow: 0 24px 48px rgba(0, 212, 255, 0.15);
-        }
-
-        .card-icon {
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(0, 168, 204, 0.1) 100%);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 16px;
-            color: #00d4ff;
-        }
-
-        .card-icon svg {
-            width: 28px;
-            height: 28px;
-            stroke-width: 2;
-        }
-
-        .card-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #e0e0e0;
-            margin-bottom: 8px;
-        }
-
-        .card-value {
-            font-size: 28px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #00d4ff, #00a8cc);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 12px;
-        }
-
-        .card-description {
-            font-size: 13px;
-            color: #888;
-            font-weight: 500;
-        }
-
-        /* Footer Styles */
-        .footer {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            color: #a0a0a0;
-            padding: 0;
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            border-top: 1px solid rgba(0, 212, 255, 0.1);
-            z-index: 998;
-            box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.3);
-        }
-
-        .footer-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 30px;
-            margin-left: 260px;
-        }
-
-        .footer-left p {
-            margin: 0;
-            font-size: 13px;
-            font-weight: 500;
-        }
-
-        .footer-right {
-            display: flex;
-            gap: 20px;
-        }
-
-        .footer-link {
-            color: #a0a0a0;
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            position: relative;
-        }
-
-        .footer-link::after {
-            content: '';
-            position: absolute;
-            bottom: -2px;
-            left: 0;
-            width: 0;
-            height: 2px;
-            background: #00d4ff;
-            transition: width 0.3s ease;
-        }
-
-        .footer-link:hover {
-            color: #00d4ff;
-        }
-
-        .footer-link:hover::after {
-            width: 100%;
-        }
-
-        /* Animations */
-        @keyframes slideInDown {
-            from {
-                opacity: 0;
-                transform: translateY(-30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes slideInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 70px;
-            }
-
-            .nav-link span {
-                display: none;
-            }
-
-            .main-content {
-                margin-left: 70px;
-                padding: 24px 16px;
-            }
-
-            .page-title {
-                font-size: 28px;
-            }
-
-            .dashboard-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .footer-content {
-                margin-left: 70px;
-                flex-direction: column;
-                gap: 10px;
-            }
-
-            .user-greeting {
-                display: none;
-            }
-
-            .navbar-container {
-                padding: 12px 15px;
-            }
-        }
-    </style>
-</head>
+<?php 
+$pageTitle = 'Predictive Dashboard';
+include 'partials/head.php'; 
+?>
 <body>
-    <!-- Navbar -->
-    <nav class="navbar">
-        <div class="navbar-container">
-            <div class="navbar-brand">
-                <svg class="navbar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                </svg>
-                <span class="brand-text">Inventory System</span>
-            </div>
-            <div class="navbar-end">
-                <span class="user-greeting">Welcome, <?= $_SESSION['username'] ?>!</span>
-                <a href="logout.php" class="logout-btn">Logout</a>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Sidebar -->
-    <aside class="sidebar">
-        <div class="sidebar-content">
-            <ul class="nav-menu">
-                <li class="nav-item">
-                    <a href="dashboard.php" class="nav-link">
-                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="3" width="7" height="7"></rect>
-                            <rect x="14" y="3" width="7" height="7"></rect>
-                            <rect x="14" y="14" width="7" height="7"></rect>
-                            <rect x="3" y="14" width="7" height="7"></rect>
-                        </svg>
-                        <span>Dashboard</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="inventory.php" class="nav-link">
-                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9 2H3v6h6V2z"></path>
-                            <path d="M21 2h-6v6h6V2z"></path>
-                            <path d="M21 14h-6v6h6v-6z"></path>
-                            <path d="M9 14H3v6h6v-6z"></path>
-                        </svg>
-                        <span>Inventory</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="add_item.php" class="nav-link">
-                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
-                        <span>Add Item</span>
-                    </a>
-                </li>
-            </ul>
-        </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="main-content">
-        <div class="page-header">
-            <h1 class="page-title">Dashboard</h1>
-            <p class="page-subtitle">Welcome back! Here's your inventory overview.</p>
-        </div>
-
-        <div class="dashboard-grid">
-            <div class="dashboard-card">
-                <div class="card-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"></path>
-                    </svg>
+    <div class="app-container">
+        <?php include 'partials/sidebar.php'; ?>
+        
+        <div class="main-content">
+            <?php include 'partials/navbar.php'; ?>
+            
+            <header class="page-header animate-fade-in">
+                <div class="header-titles">
+                    <h1 class="header-main">Intelligence Briefing</h1>
+                    <p class="text-muted">Predictive stock depletion monitoring and business velocity analytics.</p>
                 </div>
-                <h3 class="card-title">Total Items</h3>
-                <p class="card-value">1,245</p>
-                <p class="card-description">Active inventory items</p>
+                <div class="header-actions">
+                    <a href="pos.php" class="btn btn-primary">Terminal Interface</a>
+                </div>
+            </header>
+
+
+            <!-- Enhanced KPI Row -->
+            <div class="stats-grid animate-fade-in" style="animation-delay: 0.2s">
+                <div class="kpi-card glass">
+                    <div class="kpi-label">Revenue Engine</div>
+                    <div class="kpi-value">৳<?= number_format($total_revenue, 2) ?></div>
+                </div>
+                <div class="kpi-card glass">
+                    <div class="kpi-label">Active Database</div>
+                    <div class="kpi-value"><?= number_format($total_customers) ?> Clients</div>
+                </div>
+                <div class="kpi-card glass">
+                    <div class="kpi-label">Asset Worth</div>
+                    <div class="kpi-value"><?= number_format($total_items) ?> SKUs</div>
+                </div>
             </div>
 
-            <div class="dashboard-card">
-                <div class="card-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
+            <!-- Forecasting Grid -->
+            <div class="dashboard-secondary animate-fade-in" style="animation-delay: 0.3s">
+                <div class="table-card glass">
+                    <div class="card-header-flex">
+                        <h2 class="section-title">Inventory Forecasting</h2>
+                        <span class="badge">14-Day Velocity Baseline</span>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Stock</th>
+                                    <th>Velocity</th>
+                                    <th>Estimated Runway</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($forecasting)): ?>
+                                    <tr><td colspan="5" class="empty-row">Predictive data will appear as sales occur.</td></tr>
+                                <?php else: ?>
+                                    <?php foreach (array_slice($forecasting, 0, 6) as $f): 
+                                        $rClass = ($f['runway'] < 3) ? 'danger-text' : (($f['runway'] < 7) ? 'warning-text' : 'success-text');
+                                    ?>
+                                        <tr>
+                                            <td>
+                                                <div class="p-cell">
+                                                    <?php if ($f['image']): ?>
+                                                        <img src="<?= htmlspecialchars($f['image']) ?>" alt="" class="p-mini-thumb">
+                                                    <?php endif; ?>
+                                                    <strong><?= htmlspecialchars($f['item_name']) ?></strong>
+                                                </div>
+                                            </td>
+                                            <td><?= $f['current_stock'] ?> Units</td>
+                                            <td><?= round($f['daily_velocity'], 2) ?>/day</td>
+                                            <td class="<?= $rClass ?> font-bold">
+                                                <?= $f['runway'] >= 999 ? 'Sustainable' : $f['runway'] . ' Days' ?>
+                                            </td>
+                                            <td>
+                                                <?php if ($f['runway'] < 5): ?>
+                                                    <span class="pulse-tag red">URGENT</span>
+                                                <?php else: ?>
+                                                    <span class="pulse-tag green">HEALTHY</span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <h3 class="card-title">In Stock</h3>
-                <p class="card-value">892</p>
-                <p class="card-description">Items available</p>
             </div>
 
-            <div class="dashboard-card">
-                <div class="card-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                </div>
-                <h3 class="card-title">Low Stock</h3>
-                <p class="card-value">42</p>
-                <p class="card-description">Needs reordering</p>
-            </div>
-
-            <div class="dashboard-card">
-                <div class="card-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0-11C6.48 3 2 6.48 2 12s4.48 9 10 9 10-4.48 10-10S17.52 3 12 3zm0 16c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"></path>
-                    </svg>
-                </div>
-                <h3 class="card-title">Transactions</h3>
-                <p class="card-value">156</p>
-                <p class="card-description">This month</p>
-            </div>
+            <?php include 'partials/footer.php'; ?>
         </div>
-    </main>
+    </div>
 
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="footer-content">
-            <div class="footer-left">
-                <p>&copy; <span id="year"></span> Inventory System. All rights reserved.</p>
-            </div>
-            <div class="footer-right">
-                <a href="#" class="footer-link">Privacy Policy</a>
-                <a href="#" class="footer-link">Terms of Service</a>
-                <a href="#" class="footer-link">Contact</a>
-            </div>
-        </div>
-    </footer>
+    <style>
+    .page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2.5rem; }
+    .header-main { font-size: 2.2rem; font-weight: 800; tracking: -0.02em; }
 
-    <script>
-        document.getElementById('year').textContent = new Date().getFullYear();
-    </script>
+    .intel-hero-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 1.5rem; margin-bottom: 2rem; }
+    .intel-card { padding: 2rem; border-radius: 28px; display: flex; flex-direction: column; }
+    .pulse-bg { background: radial-gradient(circle at top right, rgba(139, 92, 246, 0.1), transparent); }
+    .perf-bg { background: radial-gradient(circle at top right, rgba(245, 158, 11, 0.05), transparent); }
+    
+    .intel-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 2rem; }
+    .pulse-dot { width: 10px; height: 10px; background: #ef4444; border-radius: 50%; box-shadow: 0 0 10px #ef4444; animation: blink 1.5s infinite; }
+    @keyframes blink { 0% { opacity: 0.3; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } 100% { opacity: 0.3; transform: scale(0.9); } }
+    
+    .pulse-list { display: flex; flex-direction: column; gap: 1rem; }
+    .pulse-item { border-left: 3px solid rgba(239, 68, 68, 0.5); padding: 0.5rem 1rem; background: rgba(255, 255, 255, 0.02); display: flex; justify-content: space-between; align-items: center; border-radius: 0 12px 12px 0; }
+    .p-warning { display: block; font-size: 0.75rem; color: #ef4444; font-weight: 700; margin-top: 0.25rem; }
+    .restock-btn { padding: 0.4rem 0.8rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; font-size: 0.75rem; border-radius: 6px; text-decoration: none; font-weight: 700; transition: 0.2s; }
+    .restock-btn:hover { background: #ef4444; color: white; }
+
+    .leader-stats { display: flex; flex-direction: column; gap: 1.5rem; }
+    .leader-item { border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
+    .l-label { display: block; font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 0.5rem; }
+    .l-val { font-size: 1.1rem; font-weight: 800; color: #f59e0b; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 2rem; }
+    .kpi-card { padding: 1.5rem; border-radius: 20px; text-align: center; }
+    .kpi-label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 0.5rem; }
+    .kpi-value { font-size: 1.5rem; font-weight: 800; color: var(--accent-primary); }
+
+    .card-header-flex { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 2rem; border-bottom: 1px solid var(--border-color); }
+    .badge { padding: 0.3rem 0.6rem; background: rgba(255, 255, 255, 0.05); border-radius: 6px; font-size: 0.7rem; color: var(--text-dim); font-weight: 700; }
+    .p-cell { display: flex; align-items: center; gap: 0.75rem; }
+    .p-mini-thumb { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; }
+    
+    .danger-text { color: #f87171; }
+    .warning-text { color: #fbbf24; }
+    .success-text { color: #34d399; }
+    .pulse-tag { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.65rem; font-weight: 800; }
+    .pulse-tag.red { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+    .pulse-tag.green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+
+    @media (max-width: 1000px) { .intel-hero-grid { grid-template-columns: 1fr; } .stats-grid { grid-template-columns: 1fr; } }
+    </style>
 </body>
 </html>

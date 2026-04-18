@@ -1,99 +1,122 @@
-<footer class="footer">
-    <div class="footer-content">
+<footer class="footer animate-fade-in">
+    <div class="footer-container">
         <div class="footer-left">
-            <p>&copy; <span id="year"></span> Inventory Management System. All rights reserved.</p>
+            <p>&copy; <?= date('Y') ?> <span class="accent-text">Backbenchers</span> Inventory System. Built for Performance.</p>
         </div>
         <div class="footer-right">
-            <a href="#" class="footer-link">Privacy Policy</a>
-            <a href="#" class="footer-link">Terms of Service</a>
-            <a href="#" class="footer-link">Contact</a>
+            <ul class="footer-links">
+                <li><a href="#">Support</a></li>
+                <li><a href="#">Privacy</a></li>
+                <li><a href="#">Terms</a></li>
+            </ul>
         </div>
     </div>
 </footer>
 
 <script>
-document.getElementById('year').textContent = new Date().getFullYear();
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Success Alerts
+    if (urlParams.has('success')) {
+        Swal.fire({
+            icon: 'success',
+            title: 'Operation Successful',
+            text: 'The record has been updated successfully.',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    }
+    
+    // Deletion Alert
+    if (urlParams.has('deleted')) {
+        Swal.fire({
+            icon: 'success',
+            title: 'Record Archived',
+            text: 'The item has been removed from active inventory.',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    }
+
+    // Error Alert
+    if (urlParams.has('error')) {
+        let errorMsg = 'An error occurred while processing your request.';
+        let errorTitle = 'Operation Failed';
+        
+        const errorType = urlParams.get('error');
+        if (errorType === 'is_sold') {
+            errorTitle = 'Restricted Deletion';
+            errorMsg = 'This item has sales records and cannot be deleted. Archive it instead.';
+        } else if (errorType === 'not_found') {
+            errorMsg = 'The requested item could not be found.';
+        }
+
+        Swal.fire({
+            icon: 'error',
+            title: errorTitle,
+            text: errorMsg,
+            confirmButtonColor: 'var(--accent-primary)'
+        });
+    }
+
+    // Clear URL parameters without reloading
+    if (urlParams.has('success') || urlParams.has('deleted') || urlParams.has('error')) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+});
 </script>
 
 <style>
 .footer {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    color: #a0a0a0;
-    padding: 0;
-    position: fixed;
-    bottom: 0;
     width: 100%;
-    border-top: 1px solid rgba(0, 212, 255, 0.1);
-    z-index: 998;
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.3);
+    padding: 1.5rem 2rem;
+    margin-top: auto;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-surface);
 }
 
-.footer-content {
+.footer-container {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 30px;
-    max-width: 1400px;
+    max-width: 1600px;
     margin: 0 auto;
     width: 100%;
 }
 
 .footer-left p {
-    margin: 0;
-    font-size: 13px;
-    font-weight: 500;
+    font-size: 0.85rem;
+    color: var(--text-muted);
 }
 
-.footer-right {
+.accent-text {
+    color: var(--accent-primary);
+    font-weight: 700;
+}
+
+.footer-links {
+    list-style: none;
     display: flex;
-    gap: 20px;
+    gap: 1.5rem;
 }
 
-.footer-link {
-    color: #a0a0a0;
+.footer-links a {
     text-decoration: none;
-    font-size: 13px;
-    font-weight: 500;
-    transition: all 0.3s ease;
-    position: relative;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    transition: var(--transition-fast);
 }
 
-.footer-link::after {
-    content: '';
-    position: absolute;
-    bottom: -2px;
-    left: 0;
-    width: 0;
-    height: 2px;
-    background: #00d4ff;
-    transition: width 0.3s ease;
-}
-
-.footer-link:hover {
-    color: #00d4ff;
-}
-
-.footer-link:hover::after {
-    width: 100%;
+.footer-links a:hover {
+    color: var(--accent-primary);
 }
 
 @media (max-width: 768px) {
-    .footer-content {
+    .footer-container {
         flex-direction: column;
-        gap: 10px;
-        padding: 12px 15px;
-    }
-    
-    .footer-left p {
-        font-size: 12px;
-    }
-    
-    .footer-right {
-        gap: 12px;
-    }
-    
-    .footer-link {
-        font-size: 12px;
+        gap: 1rem;
+        text-align: center;
     }
 }
 </style>

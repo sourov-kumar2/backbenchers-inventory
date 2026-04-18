@@ -1,112 +1,156 @@
-<nav class="navbar">
+<nav class="navbar glass animate-fade-in">
     <div class="navbar-container">
-        <div class="navbar-brand">
-            <svg class="navbar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                <polyline points="9 22 9 12 15 12 15 22"></polyline>
-            </svg>
-            <span class="brand-text">Inventory System</span>
+        <div class="navbar-left">
+            <button id="sidebarToggle" class="btn-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+            <a href="dashboard.php" class="navbar-brand">
+                <span class="brand-text">BACKBENCHERS</span>
+            </a>
         </div>
+        
         <div class="navbar-end">
-            <span class="user-greeting">Welcome, <?= $_SESSION['username'] ?? 'Guest' ?>!</span>
-            <a href="logout.php" class="logout-btn">Logout</a>
+            <div class="user-profile">
+                <div class="user-details">
+                    <span class="u-name"><?= htmlspecialchars($_SESSION['username'] ?? 'Guest') ?></span>
+                    <span class="u-role">Administrator</span>
+                </div>
+                <div class="u-avatar">
+                    <?= strtoupper(substr($_SESSION['username'] ?? 'G', 0, 1)) ?>
+                </div>
+            </div>
+            <div class="nav-divider"></div>
+            <a href="logout.php" class="logout-link" title="Logout">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </a>
         </div>
     </div>
 </nav>
 
 <style>
 .navbar {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    color: #fff;
-    padding: 0;
     position: fixed;
     top: 0;
-    width: 100%;
+    left: 0;
+    right: 0;
+    height: var(--navbar-height);
     z-index: 1000;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    border-bottom: 2px solid #00d4ff;
+    display: flex;
+    align-items: center;
+    padding: 0 1.5rem;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .navbar-container {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 30px;
-    max-width: 1400px;
-    margin: 0 auto;
     width: 100%;
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+.navbar-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+}
+
+.btn-icon:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
 }
 
 .navbar-brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-weight: 700;
-    font-size: 20px;
-    letter-spacing: 0.5px;
-}
-
-.navbar-icon {
-    width: 28px;
-    height: 28px;
-    color: #00d4ff;
-    filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.4));
+    text-decoration: none;
 }
 
 .brand-text {
-    background: linear-gradient(135deg, #00d4ff, #0099cc);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--text-primary);
 }
 
 .navbar-end {
     display: flex;
     align-items: center;
-    gap: 25px;
+    gap: 1.25rem;
 }
 
-.user-greeting {
-    font-size: 14px;
-    color: #a0a0a0;
-    font-weight: 500;
+.user-profile {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
 }
 
-.logout-btn {
-    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
-    color: white;
-    border: none;
-    padding: 8px 18px;
-    border-radius: 6px;
-    cursor: pointer;
+.user-details {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.u-name {
+    font-size: 0.85rem;
     font-weight: 600;
-    font-size: 13px;
-    transition: all 0.3s ease;
-    text-decoration: none;
-    display: inline-block;
 }
 
-.logout-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 16px rgba(255, 107, 107, 0.4);
+.u-role {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.u-avatar {
+    width: 36px;
+    height: 36px;
+    background: var(--accent-primary);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: white;
+}
+
+.nav-divider {
+    width: 1px;
+    height: 24px;
+    background: var(--border-color);
+}
+
+.logout-link {
+    color: var(--text-dim);
+    transition: var(--transition);
+}
+
+.logout-link:hover {
+    color: var(--danger);
 }
 
 @media (max-width: 768px) {
-    .navbar-container {
-        padding: 12px 15px;
-    }
-    
-    .navbar-brand {
-        font-size: 18px;
-    }
-    
-    .navbar-icon {
-        width: 24px;
-        height: 24px;
-    }
-    
-    .user-greeting {
-        display: none;
-    }
+    .user-details { display: none; }
 }
 </style>
