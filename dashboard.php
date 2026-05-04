@@ -177,25 +177,25 @@ include 'partials/head.php';
     .metric-card { padding: 1.5rem; border-radius: 24px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); }
     .m-label { display: block; font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 0.5rem; }
     .m-value { font-size: 1.5rem; font-weight: 800; color: var(--text-primary); margin: 0; }
-    .metric-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.05); color: var(--text-dim); }
+    .metric-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: var(--bg-card); color: var(--text-dim); }
     .metric-icon svg { width: 24px; height: 24px; }
-    .metric-icon.rev { color: #10b981; background: rgba(16, 185, 129, 0.1); }
-    .metric-icon.due { color: #f87171; background: rgba(239, 68, 68, 0.1); }
+    .metric-icon.rev { color: var(--success); background: rgba(16, 185, 129, 0.1); }
+    .metric-icon.due { color: var(--danger); background: rgba(239, 68, 68, 0.1); }
 
     .analytics-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem; align-items: stretch; }
-    .chart-container { padding: 1.75rem; border-radius: 28px; border: 1px solid var(--border-color); height: 450px; display: flex; flex-direction: column; }
+    .chart-container { padding: 1.75rem; border-radius: 28px; border: 1px solid var(--border-color); height: 450px; display: flex; flex-direction: column; background: var(--bg-card); }
     .chart-container canvas { flex: 1; min-height: 0; }
     .chart-header { margin-bottom: 1.5rem; }
     .chart-title { font-size: 1rem; font-weight: 700; margin: 0 0 0.25rem 0; color: var(--text-primary); }
     .chart-subtitle { font-size: 0.75rem; color: var(--text-dim); }
 
     .secondary-intel { display: flex; flex-direction: column; gap: 1.5rem; height: 450px; }
-    .quick-intel { padding: 1.5rem; border-radius: 24px; border: 1px solid var(--border-color); flex: 1; }
+    .quick-intel { padding: 1.5rem; border-radius: 24px; border: 1px solid var(--border-color); flex: 1; background: var(--bg-card); }
     .pulse-list { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
-    .pulse-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: rgba(255, 255, 255, 0.02); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); }
+    .pulse-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border-color); }
     .p-name { display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 0.2rem; }
-    .p-stock { font-size: 0.7rem; color: #f87171; font-weight: 600; }
-    .pulse-btn { padding: 0.35rem 0.75rem; border-radius: 6px; background: rgba(139, 92, 246, 0.1); color: var(--accent-primary); font-size: 0.7rem; font-weight: 700; text-decoration: none; border: 1px solid rgba(139, 92, 246, 0.2); }
+    .p-stock { font-size: 0.7rem; color: var(--danger); font-weight: 600; }
+    .pulse-btn { padding: 0.35rem 0.75rem; border-radius: 6px; background: var(--accent-glow); color: var(--accent-primary); font-size: 0.7rem; font-weight: 700; text-decoration: none; border: 1px solid var(--border-color); }
     .pulse-btn:hover { background: var(--accent-primary); color: white; }
 
     .bottom-grid { margin-bottom: 2rem; }
@@ -213,55 +213,78 @@ include 'partials/head.php';
     </style>
 
     <script>
-    // 1. Revenue Pulse Chart
-    new Chart(document.getElementById('revenueChart'), {
-        type: 'line',
-        data: {
-            labels: <?= json_encode($trend_labels) ?>,
-            datasets: [{
-                label: 'Revenue (৳)',
-                data: <?= json_encode($trend_values) ?>,
-                borderColor: '#8b5cf6',
-                backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                fill: true,
-                tension: 0.4,
-                borderWidth: 3,
-                pointRadius: 4,
-                pointBackgroundColor: '#8b5cf6'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: 'rgba(255, 255, 255, 0.5)', font: { size: 10 } } },
-                x: { grid: { display: false }, ticks: { color: 'rgba(255, 255, 255, 0.5)', font: { size: 10 } } }
-            }
-        }
-    });
+    const getThemeColors = () => {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        return {
+            grid: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+            text: isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
+            accent: isDark ? '#7c6fe0' : '#6366f1'
+        };
+    };
 
-    // 2. Stock Health Chart
-    new Chart(document.getElementById('stockChart'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Healthy', 'Low', 'Out'],
-            datasets: [{
-                data: [<?= $stock_status['healthy'] ?>, <?= $stock_status['low_stock'] ?>, <?= $stock_status['out_of_stock'] ?>],
-                backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
-                borderWidth: 0,
-                hoverOffset: 10
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '70%',
-            plugins: {
-                legend: { position: 'bottom', labels: { color: 'rgba(255, 255, 255, 0.7)', font: { size: 10 }, usePointStyle: true, padding: 15 } }
+    let revenueChart, stockChart;
+
+    function initCharts() {
+        const colors = getThemeColors();
+        
+        if(revenueChart) revenueChart.destroy();
+        if(stockChart) stockChart.destroy();
+
+        // 1. Revenue Pulse Chart
+        revenueChart = new Chart(document.getElementById('revenueChart'), {
+            type: 'line',
+            data: {
+                labels: <?= json_encode($trend_labels) ?>,
+                datasets: [{
+                    label: 'Revenue (৳)',
+                    data: <?= json_encode($trend_values) ?>,
+                    borderColor: colors.accent,
+                    backgroundColor: colors.accent + '1A', // 10% alpha
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 3,
+                    pointRadius: 4,
+                    pointBackgroundColor: colors.accent
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 10 } } },
+                    x: { grid: { display: false }, ticks: { color: colors.text, font: { size: 10 } } }
+                }
             }
-        }
-    });
+        });
+
+        // 2. Stock Health Chart
+        stockChart = new Chart(document.getElementById('stockChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Healthy', 'Low', 'Out'],
+                datasets: [{
+                    data: [<?= $stock_status['healthy'] ?>, <?= $stock_status['low_stock'] ?>, <?= $stock_status['out_of_stock'] ?>],
+                    backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                    borderWidth: 0,
+                    hoverOffset: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: colors.text, font: { size: 10 }, usePointStyle: true, padding: 15 } }
+                }
+            }
+        });
+    }
+
+    initCharts();
+
+    // Listen for theme changes to refresh charts
+    window.addEventListener('themeChanged', initCharts);
     </script>
 </body>
 </html>

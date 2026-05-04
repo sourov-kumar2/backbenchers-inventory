@@ -1,40 +1,67 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-    /* Color Palette - Refined Dark Glassmorphism (ChatSlide style) */
-    --bg-main: #0b0f1a;
-    --bg-overlay: rgba(15, 23, 42, 0.6);
-    --bg-surface: rgba(30, 41, 59, 0.7);
-    --bg-card: rgba(30, 41, 59, 0.45);
-    
-    --accent-primary: #8b5cf6; /* Modern Purple */
-    --accent-secondary: #7c3aed;
-    --accent-glow: rgba(139, 92, 246, 0.3);
-    
-    --text-primary: #f8fafc;
-    --text-secondary: #cbd5e1;
-    --text-muted: #94a3b8;
-    --text-dim: #64748b;
-    
-    --danger: #ef4444;
-    --success: #10b981;
-    --warning: #f59e0b;
-    
-    --border-color: rgba(255, 255, 255, 0.08);
-    --border-hover: rgba(255, 255, 255, 0.15);
-    
+    /* Base Dimensions & Transitions */
     --radius-xl: 32px;
     --radius-lg: 20px;
     --radius-md: 12px;
     --radius-sm: 8px;
-    
-    --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
-    
     --navbar-height: 64px;
     --sidebar-width: 240px;
     --sidebar-collapsed-width: 72px;
+    --transition: 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Default / Dark Theme */
+:root, [data-theme="dark"] {
+    --bg-main: #090910;
+    --bg-gradient: radial-gradient(circle at top right, #1e1b4b 0%, #090910 60%);
+    --bg-overlay: rgba(15, 23, 42, 0.6);
+    --bg-surface: rgba(22, 22, 31, 0.8);
+    --bg-card: rgba(28, 28, 40, 0.5);
+    --bg-input: rgba(0, 0, 0, 0.25);
     
-    --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --accent-primary: #7c6fe0; 
+    --accent-secondary: #6366f1;
+    --accent-glow: rgba(124, 111, 224, 0.2);
+    
+    --text-primary: #e4e4f0;
+    --text-secondary: #b4b4d0;
+    --text-muted: #8888a0;
+    --text-dim: #5c5c7a;
+    
+    --border-color: rgba(255, 255, 255, 0.08);
+    --border-hover: rgba(255, 255, 255, 0.15);
+    --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+}
+
+/* Light Theme */
+[data-theme="light"] {
+    --bg-main: #f4f7ff;
+    --bg-gradient: radial-gradient(circle at top right, #eef2ff 0%, #f4f7ff 60%);
+    --bg-overlay: rgba(255, 255, 255, 0.6);
+    --bg-surface: rgba(255, 255, 255, 0.85);
+    --bg-card: rgba(255, 255, 255, 0.7);
+    --bg-input: #ffffff;
+    
+    --accent-primary: #6366f1;
+    --accent-secondary: #4f46e5;
+    --accent-glow: rgba(99, 102, 241, 0.15);
+    
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    --text-dim: #94a3b8;
+    
+    --border-color: rgba(0, 0, 0, 0.08);
+    --border-hover: rgba(0, 0, 0, 0.15);
+    --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+}
+
+:root {
+    --danger: #ef4444;
+    --success: #10b981;
+    --warning: #f59e0b;
 }
 
 /* Base Styles */
@@ -53,7 +80,7 @@ body {
     overflow-x: hidden;
     line-height: 1.5;
     font-size: 13.5px;
-    background: radial-gradient(circle at top right, #1e1b4b 0%, #0b0f1a 50%);
+    background: var(--bg-gradient);
 }
 
 /* Utility Classes */
@@ -170,7 +197,7 @@ body {
 .form-control {
     width: 100%;
     padding: 0.75rem 1rem;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--bg-input);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     color: var(--text-primary);
@@ -181,7 +208,7 @@ body {
 .form-control:focus {
     outline: none;
     border-color: var(--accent-primary);
-    background: rgba(0, 0, 0, 0.3);
+    background: var(--bg-surface);
 }
 
 /* Tables */

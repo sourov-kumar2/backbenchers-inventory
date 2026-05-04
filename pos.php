@@ -237,7 +237,8 @@ include 'partials/head.php';
 /* ── Reset & Shell ── */
 *, *::before, *::after { box-sizing: border-box; }
 
-:root {
+/* Default / Dark Mode */
+:root, [data-theme="dark"] {
     --bg:       #090910;
     --surface:  #101018;
     --card:     #16161f;
@@ -255,6 +256,22 @@ include 'partials/head.php';
     --dim:      #3a3a55;
     --font-ui:  system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, 'Consolas', monospace;
+}
+
+/* Light Mode Override */
+[data-theme="light"] {
+    --bg:       #f0f2f9;
+    --surface:  #ffffff;
+    --card:     #ffffff;
+    --card2:    #f8f9fd;
+    --border:   #e2e8f0;
+    --border2:  #cbd5e1;
+    --accent:   #6366f1;
+    --accent-g: #4f46e5;
+    --text:     #1e293b;
+    --muted:    #64748b;
+    --dim:      #e2e8f0;
+    /* Success/Warn/Danger stay similar for meaning */
 }
 
 body { font-family: var(--font-ui); background: var(--bg); color: var(--text); }

@@ -39,6 +39,12 @@ $logo_src = $sys['system_logo'] ?? '';
         </div>
         
         <div class="navbar-end">
+            <!-- Theme Toggle -->
+            <button id="themeToggle" class="btn-icon theme-toggle-btn" title="Toggle Theme">
+                <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </button>
+
             <div class="dropdown-container">
                 <button class="user-profile-trigger" id="userMenuBtn">
                     <div class="user-details">
@@ -96,7 +102,16 @@ $logo_src = $sys['system_logo'] ?? '';
     .mobile-navbar-brand { display: none; align-items: center; text-decoration: none; }
     .brand-logo-img { height: 32px; width: auto; border-radius: 8px; }
 
-    .navbar-end { display: flex; align-items: center; }
+    .navbar-end { display: flex; align-items: center; gap: 1rem; }
+
+    .theme-toggle-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem; border-radius: 10px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
+    .theme-toggle-btn:hover { background: rgba(255, 255, 255, 0.1); border-color: var(--accent-primary); color: var(--accent-primary); }
+    
+    [data-theme="light"] .sun-icon { display: none; }
+    [data-theme="dark"] .moon-icon { display: none; }
+    [data-theme="light"] .moon-icon { display: block; }
+    [data-theme="dark"] .sun-icon { display: block; }
+
     .dropdown-container { position: relative; }
     .user-profile-trigger { background: transparent; border: 1px solid transparent; border-radius: 14px; display: flex; align-items: center; gap: 0.85rem; padding: 0.4rem 0.6rem; cursor: pointer; transition: 0.2s; color: var(--text-primary); outline: none; }
     .user-profile-trigger:hover { background: rgba(255, 255, 255, 0.05); border-color: var(--border-color); }
@@ -175,5 +190,20 @@ document.addEventListener('DOMContentLoaded', function() {
     if(toggle) toggle.addEventListener('click', openSidebar);
     if(overlay) overlay.addEventListener('click', closeSidebar);
     if(closeBtn) closeBtn.addEventListener('click', closeSidebar);
+
+    // Theme Toggle Logic
+    const themeBtn = document.getElementById('themeToggle');
+    if (themeBtn) {
+        themeBtn.addEventListener('click', function() {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('app-theme', newTheme);
+            
+            // Dispatch event for other components (like POS)
+            window.dispatchEvent(new Event('themeChanged'));
+        });
+    }
 });
 </script>

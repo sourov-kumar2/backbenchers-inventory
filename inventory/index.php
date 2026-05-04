@@ -191,7 +191,7 @@ include '../partials/head.php';
         padding: 0.75rem 1.5rem;
         border-radius: 16px;
         margin-bottom: 1.5rem;
-        background: rgba(30, 41, 59, 0.4);
+        background: var(--bg-card);
     }
 
     .search-engine { flex: 1; max-width: 500px; }

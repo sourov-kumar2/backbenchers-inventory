@@ -182,13 +182,12 @@ include '../partials/head.php';
     .input-icon-wrapper { position: relative; }
     .field-icon { position: absolute; left: 1.25rem; top: 50%; transform: translateY(-50%); color: var(--text-dim); pointer-events: none; }
     .field-symbol { position: absolute; left: 1.25rem; top: 50%; transform: translateY(-50%); color: var(--accent-primary); font-weight: 800; font-size: 1.1rem; pointer-events: none; }
-    
-    .form-control { width: 100%; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color); border-radius: 14px; padding: 1rem 1.25rem; color: white; transition: 0.25s; font-size: 0.95rem; appearance: none; }
+    .form-control { width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 14px; padding: 1rem 1.25rem; color: var(--text-primary); transition: 0.25s; font-size: 0.95rem; appearance: none; }
     .custom-select { cursor: pointer; background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C/polyline%3E%3C/svg%3E'); background-repeat: no-repeat; background-position: right 1.25rem center; background-size: 1.2rem; padding-right: 3.5rem; }
     
     .input-icon-wrapper .form-control { padding-left: 3.5rem; }
-    .custom-select option { background: #1e293b; color: white; }
-    .form-control:focus { outline: none; border-color: var(--accent-primary); background: rgba(0, 0, 0, 0.3); box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1); }
+    .custom-select option { background: var(--bg-surface); color: var(--text-primary); }
+    .form-control:focus { outline: none; border-color: var(--accent-primary); background: var(--bg-surface); box-shadow: 0 0 0 4px var(--accent-glow); }
     
     .form-divider { height: 1px; background: linear-gradient(to right, transparent, var(--border-color), transparent); margin: 2rem 0; }
 

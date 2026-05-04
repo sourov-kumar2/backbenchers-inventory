@@ -2,11 +2,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo isset($pageTitle) ? $pageTitle . ' - Inventory System' : 'Inventory System'; ?></title>
+    
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('app-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         .swal2-popup {
-            background: rgba(30, 41, 59, 0.95) !important;
+            background: var(--bg-surface) !important;
             backdrop-filter: blur(12px) !important;
             border: 1px solid var(--border-color) !important;
             border-radius: var(--radius-lg) !important;
