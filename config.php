@@ -4,6 +4,9 @@ $host = 'localhost';
 $db   = 'inventory';
 $user = 'root';
 $pass = 'root';
+// $user = 'sourov';
+// $pass = '8oTHg9YHDa2Q8LdcZv27';
+
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$db", $user, $pass);
