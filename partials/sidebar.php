@@ -120,6 +120,45 @@ if ($logo_src && !filter_var($logo_src, FILTER_VALIDATE_URL) && strpos($logo_src
                 </nav>
             </div>
 
+            <!-- Reports Section -->
+            <div class="sidebar-section">
+                <span class="section-label">Business Intelligence</span>
+                <nav class="sidebar-nav">
+                    <ul class="nav-list">
+                        <li class="nav-item">
+                            <a href="<?= $base_url ?>reports/sales.php" class="nav-link <?= $current_page == 'sales.php' ? 'active' : '' ?>">
+                                <div class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg></div>
+                                <span class="nav-text">Sales Report</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="<?= $base_url ?>reports/profit_loss.php" class="nav-link <?= $current_page == 'profit_loss.php' ? 'active' : '' ?>">
+                                <div class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></div>
+                                <span class="nav-text">Profit & Loss</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="<?= $base_url ?>reports/inventory.php" class="nav-link <?= $current_page == 'inventory.php' ? 'active' : '' ?>">
+                                <div class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg></div>
+                                <span class="nav-text">Stock Valuation</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="<?= $base_url ?>reports/customers.php" class="nav-link <?= $current_page == 'customers.php' ? 'active' : '' ?>">
+                                <div class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
+                                <span class="nav-text">Customer Insights</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="<?= $base_url ?>reports/ai_analyst.php" class="nav-link <?= $current_page == 'ai_analyst.php' ? 'active' : '' ?>">
+                                <div class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path><path d="M12 22V12"></path></svg></div>
+                                <span class="nav-text" style="background: linear-gradient(90deg, #8b5cf6, #d946ef); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800;">AI Intelligence</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+
             <!-- Contacts Section -->
             <div class="sidebar-section">
                 <span class="section-label">Contact Management</span>

@@ -7,6 +7,7 @@ $success = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name  = $_POST['item_name']    ?? '';
     $desc  = $_POST['description']  ?? '';
+    $tags  = $_POST['tags']         ?? '';
     
     // Handle Image Upload
     $image_path = null;
@@ -27,8 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     // Default quantity and price are 0 on registration
-    $stmt  = $pdo->prepare('INSERT INTO products (item_name, description, quantity, price, image) VALUES (?, ?, 0, 0, ?)');
-    if ($stmt->execute([$name, $desc, $image_path])) {
+    $stmt  = $pdo->prepare('INSERT INTO products (item_name, description, tags, quantity, price, image) VALUES (?, ?, ?, 0, 0, ?)');
+    if ($stmt->execute([$name, $desc, $tags, $image_path])) {
         $success = true;
         header('Location: index.php?success=1');
         exit();
@@ -68,13 +69,25 @@ include '../partials/head.php';
                                     <label class="form-label">Product Name / Model</label>
                                     <div class="input-icon-wrapper">
                                         <svg class="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
-                                        <input type="text" name="item_name" class="form-control" placeholder="e.g. Master CPU Core i9" required autofocus>
+                                        <input type="text" name="item_name" id="productName" class="form-control" placeholder="e.g. Master CPU Core i9" required autofocus>
+                                        <button type="button" id="aiSuggestBtn" class="ai-magic-btn" title="AI Magic Suggest">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                                            </svg>
+                                            AI Suggest
+                                        </button>
                                     </div>
                                 </div>
                                 
                                 <div class="form-group">
                                     <label class="form-label">Detailed Description</label>
-                                    <textarea name="description" class="form-control" rows="5" placeholder="Document technical specifications and hardware notes..."></textarea>
+                                    <textarea name="description" id="productDesc" class="form-control" rows="5" placeholder="Document technical specifications..."></textarea>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Search Keywords / Tags</label>
+                                    <input type="text" name="tags" id="productTags" class="form-control" placeholder="electronics, high-end, cpu">
+                                    <span class="input-hint">Separated by commas for enhanced catalog searching.</span>
                                 </div>
                             </div>
 
@@ -147,6 +160,13 @@ include '../partials/head.php';
     #fileNameDisplay { font-weight: 700; color: var(--text-primary); font-size: 0.95rem; }
     .file-hint { font-size: 0.75rem; color: var(--text-dim); }
 
+    .ai-magic-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: var(--accent-primary); padding: 0.5rem 1rem; border-radius: 10px; font-size: 0.8rem; font-weight: 800; display: flex; align-items: center; gap: 6px; cursor: pointer; transition: 0.2s; z-index: 5; }
+    .ai-magic-btn:hover { background: var(--accent-primary); color: white; transform: translateY(-50%) scale(1.05); }
+    .ai-magic-btn.loading { opacity: 0.7; pointer-events: none; }
+    
+    .loader-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s infinite linear; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     .form-footer { margin-top: 3rem; display: flex; flex-direction: column; gap: 2rem; }
     .disclaimer-note { display: flex; align-items: center; gap: 0.8rem; padding: 1.25rem; background: rgba(255, 255, 255, 0.03); border-radius: 14px; font-size: 0.8rem; color: var(--text-dim); border: 1px solid var(--border-color); line-height: 1.4; }
     .action-buttons { display: flex; gap: 1rem; justify-content: flex-end; }
@@ -159,5 +179,60 @@ include '../partials/head.php';
         .action-buttons { flex-direction: column; }
     }
     </style>
+    <script>
+    document.getElementById('aiSuggestBtn').addEventListener('click', function() {
+        const name = document.getElementById('productName').value.trim();
+        if (!name) {
+            Swal.fire({ icon: 'warning', title: 'Product Name Required', text: 'Please enter a product name first so the AI has context.' });
+            return;
+        }
+
+        const btn = this;
+        btn.classList.add('loading');
+        btn.innerHTML = `<span class="loader-spinner"></span> Generating...`;
+
+        const formData = new FormData();
+        formData.append('product_name', name);
+
+        fetch('../api/inventory_ai_helper.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.suggestion) {
+                document.getElementById('productDesc').value = data.suggestion.description;
+                document.getElementById('productTags').value = data.suggestion.tags;
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Intelligence Synced',
+                    text: `AI generated a description and suggests a price of ৳${data.suggestion.suggested_price}. (Pricing must be set during Purchase)`,
+                    confirmButtonColor: 'var(--accent-primary)'
+                });
+            } else {
+                let errorHtml = `<p>${data.error || 'The AI could not process this name.'}</p>`;
+                if (data.debug_raw) {
+                    errorHtml += `<div style="text-align:left; margin-top:10px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; font-family:monospace; font-size:11px; max-height:200px; overflow-y:auto; color:#ff9f9f;">
+                        <strong>Raw AI Output:</strong><br>${data.debug_raw}
+                    </div>`;
+                }
+                Swal.fire({ 
+                    icon: 'error', 
+                    title: 'Generation Failed', 
+                    html: errorHtml,
+                    width: '600px'
+                });
+            }
+        })
+        .catch(error => {
+            Swal.fire({ icon: 'error', title: 'Connection Error', text: error.message });
+        })
+        .finally(() => {
+            btn.classList.remove('loading');
+            btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg> AI Suggest`;
+        });
+    });
+    </script>
 </body>
 </html>

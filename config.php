@@ -15,8 +15,14 @@ try {
     $sys = $sys_stmt->fetch() ?: [
         'system_name' => 'Backbenchers Inventory',
         'system_logo' => null,
-        'system_details' => ''
+        'system_details' => '',
+        'groq_api_key' => '',
+        'groq_model' => 'llama-3.3-70b-versatile'
     ];
+
+    // AI Intelligence Configuration (Dynamic)
+    define('GROQ_API_KEY', $sys['groq_api_key'] ?? '');
+    define('GROQ_MODEL', $sys['groq_model'] ?? 'llama-3.3-70b-versatile');
 
 } catch (PDOException $e) {
     die("Database connection failed: " . $e->getMessage());

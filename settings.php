@@ -9,6 +9,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $system_name    = $_POST['system_name']    ?? '';
     $system_details = $_POST['system_details'] ?? '';
     $fraud_api_key  = $_POST['fraud_api_key']  ?? '';
+    $groq_api_key   = $_POST['groq_api_key']   ?? '';
+    $groq_model     = $_POST['groq_model']     ?? 'llama-3.3-70b-versatile';
     
     $logo_path = $sys['system_logo'];
     
@@ -27,8 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    $stmt = $pdo->prepare("UPDATE system_settings SET system_name = ?, system_logo = ?, system_details = ?, fraud_api_key = ? WHERE id = 1");
-    if ($stmt->execute([$system_name, $logo_path, $system_details, $fraud_api_key])) {
+    $stmt = $pdo->prepare("UPDATE system_settings SET system_name = ?, system_logo = ?, system_details = ?, fraud_api_key = ?, groq_api_key = ?, groq_model = ? WHERE id = 1");
+    if ($stmt->execute([$system_name, $logo_path, $system_details, $fraud_api_key, $groq_api_key, $groq_model])) {
         header('Location: settings.php?success=global_synced');
         exit();
     }
@@ -91,6 +93,27 @@ include 'partials/head.php';
                                             <input type="password" name="fraud_api_key" class="form-control pl-icon" value="<?= htmlspecialchars($sys['fraud_api_key']) ?>" placeholder="your_private_api_key">
                                         </div>
                                         <span class="input-hint">Synchronized with fraudbd.com for automated courier reputation auditing.</span>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="form-label">Groq AI Intelligence Key</label>
+                                        <div class="input-icon-wrapper">
+                                            <svg class="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path><path d="M12 22V12"></path></svg>
+                                            <input type="password" name="groq_api_key" class="form-control pl-icon" value="<?= htmlspecialchars($sys['groq_api_key'] ?? '') ?>" placeholder="gsk_...">
+                                        </div>
+                                        <span class="input-hint">API Key for LLAMA-3 Business Analyst (Generate at groq.com).</span>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="form-label">AI Model Preference</label>
+                                        <div class="input-icon-wrapper">
+                                            <svg class="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+                                            <select name="groq_model" class="form-control pl-icon">
+                                                <option value="llama-3.3-70b-versatile" <?= ($sys['groq_model'] ?? '') == 'llama-3.3-70b-versatile' ? 'selected' : '' ?>>Llama 3.3 70B (Versatile)</option>
+                                                <option value="llama-3.1-8b-instant" <?= ($sys['groq_model'] ?? '') == 'llama-3.1-8b-instant' ? 'selected' : '' ?>>Llama 3.1 8B (Instant)</option>
+                                                <option value="mixtral-8x7b-32768" <?= ($sys['groq_model'] ?? '') == 'mixtral-8x7b-32768' ? 'selected' : '' ?>>Mixtral 8x7B</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
 
