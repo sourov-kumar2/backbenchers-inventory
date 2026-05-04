@@ -52,9 +52,18 @@ include 'partials/head.php';
                         <svg class="neural-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
                         <input type="text" id="aiCommandInput" class="neural-input"
                                placeholder="e.g. Add 3 SSDs for Ayesha with 10% discount...">
-                        <button type="button" id="micBtn" class="mic-btn" title="Voice Command">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                        </button>
+                        
+                        <div class="neural-controls">
+                            <button type="button" id="langToggle" class="lang-toggle" title="Switch Language">
+                                <span class="lang-en">EN</span>
+                                <span class="lang-sep">/</span>
+                                <span class="lang-bn">বাং</span>
+                            </button>
+                            <button type="button" id="micBtn" class="mic-btn" title="Voice Command">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                            </button>
+                        </div>
+                        
                         <div class="neural-loader" id="aiLoader"></div>
                     </div>
                     <span class="neural-hint">Press <kbd>Enter</kbd> to execute — AI will parse your command instantly.</span>
@@ -306,14 +315,32 @@ body { font-family: var(--font-ui); background: var(--bg); color: var(--text); }
 }
 @keyframes pulse-icon { 0%,100%{opacity:1} 50%{opacity:.5} }
 
-.mic-btn {
+.mic-btn.recording { color: var(--danger); animation: mic-pulse 1.5s infinite; }
+
+.neural-controls {
     position: absolute; right: 2.75rem; top: 50%; transform: translateY(-50%);
+    display: flex; align-items: center; gap: .5rem;
+}
+
+.lang-toggle {
+    background: var(--dim); border: 1px solid var(--border2);
+    border-radius: 20px; padding: .2rem .6rem;
+    font-size: .65rem; font-weight: 700; color: var(--muted);
+    cursor: pointer; display: flex; align-items: center; gap: .25rem;
+    transition: .2s; font-family: var(--font-mono);
+}
+.lang-toggle.is-bn .lang-bn { color: var(--accent); }
+.lang-toggle.is-bn .lang-en { color: var(--muted); }
+.lang-toggle.is-en .lang-en { color: var(--accent); }
+.lang-toggle.is-en .lang-bn { color: var(--muted); }
+.lang-toggle:hover { border-color: var(--accent); }
+
+.mic-btn {
     background: transparent; border: none; color: var(--muted);
     cursor: pointer; transition: .2s; padding: .4rem; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
 }
 .mic-btn:hover { color: var(--accent); background: rgba(124,111,224,.1); }
-.mic-btn.recording { color: var(--danger); animation: mic-pulse 1.5s infinite; }
 
 @keyframes mic-pulse {
     0% { transform: translateY(-50%) scale(1); box-shadow: 0 0 0 0 rgba(248,113,113,0.4); }
@@ -833,6 +860,29 @@ document.getElementById('posForm').addEventListener('submit', function(e) {
 // ─── AI Neural Command ────────────────────────────────────
 const commandInput = document.getElementById('aiCommandInput');
 const micBtn = document.getElementById('micBtn');
+const langToggle = document.getElementById('langToggle');
+
+// Language State
+let currentVoiceLang = localStorage.getItem('pos_voice_lang') || 'bn-BD';
+updateLangUI();
+
+function updateLangUI() {
+    if (currentVoiceLang === 'bn-BD') {
+        langToggle.classList.add('is-bn');
+        langToggle.classList.remove('is-en');
+    } else {
+        langToggle.classList.add('is-en');
+        langToggle.classList.remove('is-bn');
+    }
+}
+
+langToggle.addEventListener('click', () => {
+    currentVoiceLang = (currentVoiceLang === 'bn-BD') ? 'en-US' : 'bn-BD';
+    localStorage.setItem('pos_voice_lang', currentVoiceLang);
+    updateLangUI();
+    toast(`Voice tracking set to ${currentVoiceLang === 'bn-BD' ? 'Bangla' : 'English'}`, 'info');
+    if (recognition) recognition.lang = currentVoiceLang;
+});
 
 // Voice Command Logic
 let recognition = null;
@@ -841,7 +891,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = false;
-    recognition.lang = 'en-US';
+    recognition.lang = currentVoiceLang;
 
     recognition.onstart = () => {
         micBtn.classList.add('recording');
@@ -938,6 +988,20 @@ function processAIActions(actions) {
                 manualPaid = false;
                 updateAll();
                 toast('Tax set to ' + action.percent + '%', 'success');
+                break;
+            case 'finalize_sale':
+                updateAll();
+                setTimeout(() => {
+                    if (cart.length > 0) {
+                        toast('Finalizing transaction...', 'info');
+                        document.getElementById('posForm').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                        // If dispatchEvent didn't trigger validation stop, we submit manually if valid
+                        const checkoutBtn = document.querySelector('button[type="submit"]');
+                        if (checkoutBtn) checkoutBtn.click();
+                    } else {
+                        toast('Cart is empty, cannot finalize.', 'error');
+                    }
+                }, 400);
                 break;
         }
     });

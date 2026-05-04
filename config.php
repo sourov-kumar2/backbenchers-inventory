@@ -1,6 +1,7 @@
 <?php
 // Database configuration
 $host = 'localhost';
+// $db   = 'inveentory';
 $db   = 'inventory';
 $user = 'root';
 $pass = 'root';

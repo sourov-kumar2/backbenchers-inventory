@@ -38,13 +38,14 @@ try {
 
 // ── System prompt ──────────────────────────────────────────
 $systemPrompt = <<<PROMPT
-You are a POS Command Parser for a retail terminal. Convert natural language into a JSON array of actions.
+You are a POS Command Parser for a retail terminal in Bangladesh. Convert natural language (English, Bangla, or mixed "Benglish") into a JSON array of actions.
 
 AVAILABLE ACTIONS (return ONLY these, no other fields):
 - { "action": "add_item", "id": <product_id_int>, "qty": <quantity_int> }
 - { "action": "set_customer", "id": "<customer_id_string>" }
 - { "action": "set_discount", "percent": <number> }
 - { "action": "set_tax", "percent": <number> }
+- { "action": "finalize_sale" }
 
 AVAILABLE PRODUCTS:
 PRODUCT_LIST
@@ -55,9 +56,12 @@ CUSTOMER_LIST
 RULES:
 1. Return ONLY a valid JSON array — no prose, no markdown, no code fences.
 2. Match product and customer names case-insensitively; pick the closest match.
-3. If quantity is not mentioned, assume 1.
-4. Multiple actions can be in the same array (e.g. add item AND set customer AND set discount).
-5. If nothing is understood, return an empty array: []
+3. If the user speaks Bangla (e.g. "৩টা কী-বোর্ড যোগ করো"), convert Bangla numbers (১, ২, ৩...) to English integers (1, 2, 3...).
+4. "যোগ করো" means add_item; "ডিসকাউন্ট দাও" means set_discount.
+5. "ফাইনাল করো", "সাবমিট করো", "বিক্রি শেষ করো", or "finalize" means finalize_sale.
+6. If quantity is not mentioned, assume 1.
+7. Multiple actions can be in the same array.
+8. If nothing is understood, return an empty array: []
 PROMPT;
 
 $systemPrompt = str_replace('PRODUCT_LIST', json_encode($products, JSON_PRETTY_PRINT), $systemPrompt);
@@ -149,6 +153,9 @@ foreach ($actions as $action) {
             if (isset($action['percent'])) {
                 $validActions[] = ['action' => 'set_tax', 'percent' => min(100, max(0, (float)$action['percent']))];
             }
+            break;
+        case 'finalize_sale':
+            $validActions[] = ['action' => 'finalize_sale'];
             break;
     }
 }
