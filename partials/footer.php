@@ -13,6 +13,9 @@
     </div>
 </footer>
 
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -64,8 +67,22 @@ document.addEventListener('DOMContentLoaded', function() {
     if (urlParams.has('success') || urlParams.has('deleted') || urlParams.has('error')) {
         window.history.replaceState({}, document.title, window.location.pathname);
     }
+
+    // Initialize Global Select2 Branding
+    if (typeof jQuery !== 'undefined' && typeof $.fn.select2 !== 'undefined') {
+        $('select').not('.no-select2').each(function() {
+            $(this).select2({
+                placeholder: $(this).data('placeholder') || 'Select an option',
+                allowClear: $(this).data('allow-clear') || false,
+                width: '100%',
+                dropdownParent: $(this).parent() // Fix for glassmorphism/scrolling issues
+            });
+        });
+    }
 });
 </script>
+
+<!-- Select2 JS (Moved to top of script section) -->
 
 <style>
 .footer {
